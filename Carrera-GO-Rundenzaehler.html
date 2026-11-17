@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>GO!!! Rundenzähler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Saira:wght@400;600&display=swap">
+<style>
+/* Boxengassen-Monitor: dunkles Rennbildschirm-Design, zwei Spuren nebeneinander */
+:root{
+  --bg:#0e1116; --panel:#171b22; --panel2:#1f242d; --line:#2c333e;
+  --fg:#eef1f5; --mut:#8c96a5; --accent:#ffd400;
+  --red:#ff2d2d; --green:#21e07a;
+  --l1:#ff5a1f; --l2:#2f8cff;
+  --disp:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Saira",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 var(--body);-webkit-tap-highlight-color:transparent;
+  padding:env(safe-area-inset-top,0) max(12px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0) max(12px,env(safe-area-inset-left,0px))}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer}
+button:hover{border-color:var(--mut)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.go{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+button.danger{border-color:#6b2a2a;color:#ffb3b3}
+input,select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+input[type=range]{padding:0;width:100%;accent-color:var(--accent)}
+input[type=color]{padding:2px;width:42px;height:36px}
+.num{font-variant-numeric:tabular-nums}
+
+header{display:flex;align-items:center;gap:12px;padding:10px 0;flex-wrap:wrap}
+header h1{font:800 22px/1 var(--disp);letter-spacing:.02em;margin:0;text-transform:uppercase}
+header h1 span{color:var(--accent)}
+.tabs{display:flex;gap:6px;margin-left:auto}
+.tabs button[aria-pressed=true]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* --- Einrichten --- */
+#setup{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;padding-bottom:20px}
+@media (max-width:820px){#setup{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font:700 15px/1.2 var(--disp);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--mut)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row label{display:flex;gap:6px;align-items:center}
+.lbl{font-size:13px;color:var(--mut)}
+#camWrap{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3;max-width:100%;touch-action:none}
+#preview{width:100%;height:100%;display:block}
+#camEmpty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px;color:var(--mut)}
+#video{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none}
+.laneBtn{display:flex;align-items:center;gap:8px}
+.laneBtn i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.laneBtn[aria-pressed=true]{border-color:var(--fg);background:#2a313c}
+.meter{position:relative;height:12px;background:var(--panel2);border-radius:6px;overflow:hidden;flex:1;min-width:80px}
+.meter b{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:6px}
+.meter u{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);opacity:.7}
+.hits{min-width:86px;text-align:right}
+.hint{font-size:13px;color:var(--mut);margin:0}
+.lanes2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lanes2 .card{padding:10px}
+#records{margin:0;padding-left:20px}
+#records li{padding:2px 0}
+
+/* --- Rennen --- */
+#race{display:flex;flex-direction:column;gap:12px;padding-bottom:16px;min-height:calc(100% - 60px)}
+#raceTop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#raceInfo{font:700 22px/1 var(--disp);letter-spacing:.04em;text-transform:uppercase}
+#raceClock{font:800 30px/1 var(--disp);margin-left:auto}
+#board{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
+@media (max-width:640px){#board{grid-template-columns:1fr}}
+.lane{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;overflow:hidden;cursor:pointer;user-select:none;-webkit-user-select:none}
+.lane::before{content:"";position:absolute;left:0;top:0;right:0;height:6px;background:var(--c)}
+.lane.flash{animation:flash .5s ease-out}
+@keyframes flash{from{background:color-mix(in srgb,var(--c) 45%,var(--panel))}to{background:var(--panel)}}
+@media (prefers-reduced-motion:reduce){.lane.flash{animation:none}}
+.lane .who{display:flex;align-items:center;gap:8px;font:700 24px/1.1 var(--disp);text-transform:uppercase;letter-spacing:.03em}
+.lane .pos{background:var(--c);color:#111;border-radius:6px;padding:2px 8px;font-size:20px}
+.lane .laps{font:800 clamp(64px,14vw,160px)/0.9 var(--disp);font-variant-numeric:tabular-nums}
+.lane .laps small{font-size:.35em;color:var(--mut);font-weight:700}
+.lane .cur{font:700 34px/1 var(--disp);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stats div{background:var(--panel2);border-radius:8px;padding:8px}
+.stats span{display:block;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.stats b{font:700 22px/1.1 var(--disp);font-variant-numeric:tabular-nums}
+.badge{display:inline-block;background:var(--red);color:#fff;border-radius:6px;padding:3px 8px;font:700 14px/1.2 var(--disp);letter-spacing:.05em;text-transform:uppercase}
+.badge.ok{background:var(--green);color:#111}
+.lane .foot{display:flex;gap:8px;align-items:center;margin-top:auto;flex-wrap:wrap}
+.lane .foot button{padding:6px 10px;font-size:13px}
+.lapList{font-size:13px;color:var(--mut);max-height:4.5em;overflow:auto}
+
+/* Ampel */
+#lights{position:fixed;inset:0;background:rgba(5,7,10,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;z-index:20}
+#lights .bulbs{display:flex;gap:min(3vw,22px)}
+#lights .bulb{width:min(14vw,110px);aspect-ratio:1;border-radius:50%;background:#2a0d0d;border:6px solid #111;box-shadow:inset 0 0 20px #000}
+#lights .bulb.on{background:var(--red);box-shadow:0 0 40px var(--red)}
+#lights .bulb.green{background:var(--green);box-shadow:0 0 40px var(--green)}
+#lights p{font:800 34px/1 var(--disp);text-transform:uppercase;letter-spacing:.05em;margin:0}
+
+/* Ergebnis */
+#result{position:fixed;inset:0;background:rgba(5,7,10,.92);display:flex;align-items:center;justify-content:center;z-index:30;padding:16px}
+#result .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;width:min(640px,100%);max-height:100%;overflow:auto}
+#result h2{font:800 40px/1 var(--disp);text-transform:uppercase;margin:0 0 4px;color:var(--accent)}
+#result table{width:100%;border-collapse:collapse;margin:14px 0;font-variant-numeric:tabular-nums}
+#result td,#result th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+#result th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.miniCam{width:160px;border-radius:8px;display:block}
+</style>
+</head>
+<body>
+<header>
+  <h1>GO<span>!!!</span> Rundenzähler</h1>
+  <div class="tabs">
+    <button id="tabSetup" aria-pressed="true">Einrichten</button>
+    <button id="tabRace" aria-pressed="false">Rennen</button>
+  </div>
+</header>
+
+<!-- ============ EINRICHTEN ============ -->
+<main id="setup">
+  <div class="stack">
+    <div class="card stack">
+      <h2>Kamera</h2>
+      <div id="camWrap">
+        <canvas id="preview"></canvas>
+        <div id="camEmpty">
+          <div>Halte die Kamera von oben auf die Start/Ziel-Gerade.</div>
+          <button id="bCam" class="go">Kamera starten</button>
+          <div id="camErr" class="hint"></div>
+        </div>
+      </div>
+      <video id="video" playsinline muted autoplay></video>
+      <div class="row">
+        <span class="lbl">Kästchen zeichnen für:</span>
+        <button class="laneBtn" id="pick0" aria-pressed="true"><i style="background:var(--l1)"></i><span>Spur 1</span></button>
+        <button class="laneBtn" id="pick1" aria-pressed="false"><i style="background:var(--l2)"></i><span>Spur 2</span></button>
+        <select id="camSel" aria-label="Kamera wählen" style="margin-left:auto"></select>
+      </div>
+      <p class="hint">Zieh mit dem Finger oder der Maus ein Kästchen über jede Spur, direkt hinter der Ziellinie. Es sollte etwas breiter als die Spur sein und ungefähr so lang wie ein Auto.</p>
+      <div class="row"><span class="lbl" style="width:52px">Spur 1</span><div class="meter" id="m0"><b></b><u></u></div><span class="hits num lbl" id="h0">0 erkannt</span></div>
+      <div class="row"><span class="lbl" style="width:52px">Spur 2</span><div class="meter" id="m1"><b></b><u></u></div><span class="hits num lbl" id="h1">0 erkannt</span></div>
+      <p class="hint">Schieb ein Auto von Hand durch ein Kästchen. Der Balken muss über den weißen Strich gehen, und „erkannt“ zählt eins hoch.</p>
+    </div>
+
+    <div class="card stack">
+      <h2>Erkennung</h2>
+      <label class="stack" style="gap:4px"><span class="row" style="justify-content:space-between"><span>Empfindlichkeit</span><span class="lbl num" id="vSens"></span></span>
+        <input type="range" id="sens" min="1" max="100" step="1"></label>
+      <label class="stack" style="gap:4px"><span class="row" style="justify-content:space-between"><span>Sperrzeit nach einer Erkennung</span><span class="lbl num" id="vLock"></span></span>
+        <input type="range" id="lock" min="0.3" max="5" step="0.1"></label>
+      <p class="hint">Die Sperrzeit verhindert, dass ein Auto doppelt gezählt wird. Stell sie etwas kürzer ein als deine schnellste Runde.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card stack">
+      <h2>Fahrer</h2>
+      <div class="lanes2">
+        <div class="card stack" style="gap:6px"><span class="lbl">Spur 1</span><div class="row"><input id="n0" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 1"><input type="color" id="c0" aria-label="Farbe Spur 1"></div></div>
+        <div class="card stack" style="gap:6px"><span class="lbl">Spur 2</span><div class="row"><input id="n1" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 2"><input type="color" id="c1" aria-label="Farbe Spur 2"></div></div>
+      </div>
+    </div>
+    <div class="card stack">
+      <h2>Rennen</h2>
+      <div class="row">
+        <label><input type="radio" name="mode" value="laps" id="modeLaps"> Runden</label>
+        <input type="number" id="laps" min="1" max="999" style="width:80px" aria-label="Anzahl Runden">
+      </div>
+      <div class="row">
+        <label><input type="radio" name="mode" value="time" id="modeTime"> Zeit</label>
+        <input type="number" id="mins" min="0.5" max="120" step="0.5" style="width:80px" aria-label="Minuten"> <span class="lbl">Minuten</span>
+      </div>
+      <div class="row"><label><input type="checkbox" id="speech"> Sprachausgabe</label><label><input type="checkbox" id="sound"> Töne</label></div>
+      <p class="hint">Frühstart: Wer vor Grün über die Linie fährt, bekommt <b>1 Sekunde</b> auf die Gesamtzeit.</p>
+      <button class="go" id="bToRace" style="padding:14px;font-size:18px">Zum Rennen</button>
+    </div>
+    <div class="card">
+      <h2>Bestzeiten (schnellste Runden)</h2>
+      <ol id="records"></ol>
+      <div class="row" style="justify-content:flex-end"><button id="bClearRec" class="danger" style="font-size:13px;padding:6px 10px">Bestzeiten löschen</button></div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ RENNEN ============ -->
+<main id="race" hidden>
+  <div id="raceTop">
+    <button class="go" id="bStart" style="padding:12px 20px;font-size:18px">Start</button>
+    <button id="bStop" class="danger">Rennen beenden</button>
+    <span id="raceInfo"></span>
+    <span id="raceClock" class="num">0:00,0</span>
+  </div>
+  <div id="board"></div>
+  <p class="hint">Tipp auf eine Spur oder drück <b>1</b> / <b>2</b>, falls die Kamera mal eine Runde verpasst.</p>
+</main>
+
+<div id="lights" hidden>
+  <div class="bulbs"><div class="bulb"></div><div class="bulb"></div><div class="bulb"></div><div class="bulb"></div><div class="bulb"></div></div>
+  <p id="lightsTxt">Bereit machen</p>
+  <button id="bAbort" class="danger">Abbrechen</button>
+</div>
+
+<div id="result" hidden><div class="box" id="resultBox"></div></div>
+
+<canvas id="proc" hidden></canvas>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const KEY='go-rundenzaehler-v1', RKEY='go-rundenzaehler-rekorde';
+const DEF={names:['Spieler 1','Spieler 2'],colors:['#ff5a1f','#2f8cff'],mode:'laps',laps:10,mins:3,
+  sens:40,lock:1.0,speech:true,sound:true,penalty:1.0,boxes:[null,null],camId:''};
+let cfg=Object.assign({},DEF);
+try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s) cfg=Object.assign({},DEF,s); }catch(e){}
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){} }
+let records=[]; try{ records=JSON.parse(localStorage.getItem(RKEY)||'[]'); }catch(e){}
+function saveRec(){ try{localStorage.setItem(RKEY,JSON.stringify(records));}catch(e){} }
+
+/* ---------- Format ---------- */
+function fs(sec,dec=2){ if(sec==null||!isFinite(sec)) return '–';
+  const neg=sec<0; sec=Math.abs(sec); const m=Math.floor(sec/60), s=sec-m*60;
+  const str=(m?m+':'+(s<10?'0':''):'')+s.toFixed(dec); return (neg?'-':'')+str.replace('.',','); }
+function sayNum(sec){ return sec.toFixed(2).replace('.',',')+' Sekunden'; }
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- Ton & Sprache ---------- */
+let actx=null;
+function unlockAudio(){
+  try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){}
+  try{ if('speechSynthesis' in window){ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u);} }catch(e){}
+}
+function beep(f=660,d=0.18,v=0.25){
+  if(!cfg.sound||!actx) return;
+  try{ const o=actx.createOscillator(), g=actx.createGain(); o.type='square'; o.frequency.value=f;
+    g.gain.setValueAtTime(v,actx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,actx.currentTime+d);
+    o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime+d); }catch(e){}
+}
+let deVoice=null;
+function pickVoice(){ try{ const v=speechSynthesis.getVoices(); deVoice=v.find(x=>/^de/i.test(x.lang)&&/Anna|Petra|Helena|Google/i.test(x.name))||v.find(x=>/^de/i.test(x.lang))||null; }catch(e){} }
+if('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged=pickVoice; }
+function say(txt,urgent){
+  if(!cfg.speech||!('speechSynthesis' in window)) return;
+  try{ if(urgent) speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='de-DE'; if(deVoice) u.voice=deVoice; u.rate=1.08; speechSynthesis.speak(u); }catch(e){}
+}
+
+/* ---------- Kamera ---------- */
+const video=$('video'), prev=$('preview'), pctx=prev.getContext('2d');
+const proc=$('proc'), cctx=proc.getContext('2d',{willReadFrequently:true});
+let stream=null, wakeLock=null, useVFC=false, lastVFC=0;
+async function keepAwake(){ try{ if('wakeLock' in navigator && document.visibilityState==='visible') wakeLock=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(stream&&document.visibilityState==='visible') keepAwake(); });
+
+async function startCamera(deviceId){
+  unlockAudio();
+  $('camErr').textContent='';
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    $('camErr').textContent='Dieser Browser gibt die Kamera hier nicht frei. Die Seite muss über https:// geöffnet werden.'; return; }
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    const v=deviceId?{deviceId:{exact:deviceId}}:{facingMode:{ideal:'environment'}};
+    Object.assign(v,{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:60}});
+    const s=await navigator.mediaDevices.getUserMedia({video:v,audio:false});
+    useStream(s);
+    const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+    const cur=s.getVideoTracks()[0].getSettings().deviceId||'';
+    $('camSel').innerHTML=devs.map((d,i)=>`<option value="${esc(d.deviceId)}"${d.deviceId===cur?' selected':''}>${esc(d.label||('Kamera '+(i+1)))}</option>`).join('');
+    cfg.camId=cur; save();
+  }catch(e){
+    $('camErr').textContent='Kamera konnte nicht gestartet werden ('+(e.name||e)+'). Erlaube den Kamerazugriff und versuch es nochmal.';
+  }
+}
+function useStream(s){
+  stream=s; video.srcObject=s; video.play().catch(()=>{});
+  $('camEmpty').hidden=true; keepAwake();
+  // jedes Kamerabild direkt auswerten (unabhängig von der Bildschirm-Aktualisierung)
+  if(video.requestVideoFrameCallback && !useVFC){ useVFC=true;
+    const onFrame=()=>{ lastVFC=performance.now(); if(video.readyState>=2) analyse(lastVFC); video.requestVideoFrameCallback(onFrame); };
+    video.requestVideoFrameCallback(onFrame); }
+}
+$('bCam').onclick=()=>startCamera(cfg.camId||'');
+$('camSel').onchange=e=>startCamera(e.target.value);
+
+/* ---------- Erkennung ---------- */
+const PW=240;                       // Breite des Analysebilds in Pixeln
+const det=[0,1].map(()=>({bg:null,key:'',frac:0,active:false,since:0,last:-1e9,hits:0}));
+function boxPx(b,W,H){ const x=Math.max(0,Math.floor(b.x*W)), y=Math.max(0,Math.floor(b.y*H));
+  return {x,y,w:Math.max(2,Math.min(W-x,Math.round(b.w*W))),h:Math.max(2,Math.min(H-y,Math.round(b.h*H)))}; }
+// Empfindlichkeit 1..100 -> Pixel-Helligkeitsschwelle 60..6
+const pixThr=()=>Math.round(60-cfg.sens*0.54);
+const TRIG=0.18;                    // Anteil veränderter Pixel, ab dem ein Auto erkannt wird
+function analyse(now){
+  const vw=video.videoWidth, vh=video.videoHeight; if(!vw||!vh) return;
+  const W=PW, H=Math.round(PW*vh/vw);
+  if(proc.width!==W||proc.height!==H){ proc.width=W; proc.height=H; }
+  cctx.drawImage(video,0,0,W,H);
+  const thr=pixThr();
+  for(let i=0;i<2;i++){
+    const b=cfg.boxes[i], d=det[i]; if(!b){ d.frac=0; continue; }
+    const r=boxPx(b,W,H), key=`${r.x},${r.y},${r.w},${r.h}`;
+    const px=cctx.getImageData(r.x,r.y,r.w,r.h).data, n=r.w*r.h;
+    if(d.key!==key||!d.bg){ d.key=key; d.bg=new Float32Array(n); for(let p=0,q=0;p<n;p++,q+=4) d.bg[p]=(px[q]*2+px[q+1]*5+px[q+2])/8; d.frac=0; d.active=false; continue; }
+    let changed=0; const g=new Float32Array(n);
+    for(let p=0,q=0;p<n;p++,q+=4){ const v=(px[q]*2+px[q+1]*5+px[q+2])/8; g[p]=v; if(Math.abs(v-d.bg[p])>thr) changed++; }
+    const frac=changed/n; d.frac=frac;
+    if(!d.active && frac>TRIG){
+      d.active=true; d.since=now;
+      if(now-d.last>=cfg.lock*1000){ d.last=now; d.hits++; onCross(i,now,'cam'); }
+    } else if(d.active && frac<TRIG*0.5){ d.active=false; }
+    // Hintergrund langsam nachführen (Licht ändert sich); steht etwas lange im Kästchen, wird es ebenfalls übernommen
+    const a = !d.active ? 0.08 : (now-d.since>2500 ? 0.05 : 0);
+    if(a) for(let p=0;p<n;p++) d.bg[p]+= (g[p]-d.bg[p])*a;
+  }
+}
+
+/* ---------- Vorschau & Kästchen zeichnen ---------- */
+let pickLane=0, drag=null;
+function setPick(i){ pickLane=i; $('pick0').setAttribute('aria-pressed',i===0); $('pick1').setAttribute('aria-pressed',i===1); }
+$('pick0').onclick=()=>setPick(0); $('pick1').onclick=()=>setPick(1);
+function laneColor(i){ return cfg.colors[i]; }
+function drawPreview(){
+  const wrap=$('camWrap'); if($('setup').hidden) return;
+  const vw=video.videoWidth||4, vh=video.videoHeight||3;
+  wrap.style.aspectRatio=vw+'/'+vh;
+  const dpr=Math.min(2,window.devicePixelRatio||1), cw=wrap.clientWidth, ch=wrap.clientHeight;
+  if(prev.width!==Math.round(cw*dpr)||prev.height!==Math.round(ch*dpr)){ prev.width=Math.round(cw*dpr); prev.height=Math.round(ch*dpr); }
+  const W=prev.width,H=prev.height;
+  pctx.fillStyle='#000'; pctx.fillRect(0,0,W,H);
+  if(stream&&video.videoWidth) pctx.drawImage(video,0,0,W,H);
+  const boxes=cfg.boxes.slice(); if(drag) boxes[drag.lane]=normRect(drag);
+  boxes.forEach((b,i)=>{ if(!b) return;
+    const x=b.x*W,y=b.y*H,w=b.w*W,h=b.h*H;
+    if(det[i].active){ pctx.fillStyle=laneColor(i)+'66'; pctx.fillRect(x,y,w,h); }
+    pctx.lineWidth=3*dpr; pctx.strokeStyle=laneColor(i); pctx.strokeRect(x,y,w,h);
+    pctx.fillStyle=laneColor(i); pctx.font=`700 ${14*dpr}px Saira Condensed, sans-serif`;
+    const t='SPUR '+(i+1); const tw=pctx.measureText(t).width+10*dpr;
+    pctx.fillRect(x,y-18*dpr<0?y:y-18*dpr,tw,18*dpr); pctx.fillStyle='#111'; pctx.fillText(t,x+5*dpr,(y-18*dpr<0?y:y-18*dpr)+14*dpr);
+  });
+}
+function normRect(d){ const x=Math.min(d.x0,d.x1),y=Math.min(d.y0,d.y1); return {x,y,w:Math.abs(d.x1-d.x0),h:Math.abs(d.y1-d.y0)}; }
+function relPos(e){ const r=prev.getBoundingClientRect(); return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]; }
+prev.addEventListener('pointerdown',e=>{ if(!stream) return; const [x,y]=relPos(e); drag={lane:pickLane,x0:x,y0:y,x1:x,y1:y}; prev.setPointerCapture(e.pointerId); e.preventDefault(); });
+prev.addEventListener('pointermove',e=>{ if(!drag) return; const [x,y]=relPos(e); drag.x1=x; drag.y1=y; });
+prev.addEventListener('pointerup',()=>{ if(!drag) return; const r=normRect(drag);
+  if(r.w>0.02&&r.h>0.02){ cfg.boxes[drag.lane]=r; det[drag.lane].bg=null; save(); if(drag.lane===0&&!cfg.boxes[1]) setPick(1); }
+  drag=null; });
+function updateMeters(){
+  for(let i=0;i<2;i++){ const m=$('m'+i), d=det[i];
+    const full=TRIG*2; m.querySelector('b').style.width=Math.min(100,d.frac/full*100)+'%';
+    m.querySelector('b').style.background=d.active?laneColor(i):'var(--mut)';
+    m.querySelector('u').style.left='50%';
+    $('h'+i).textContent=cfg.boxes[i]?d.hits+' erkannt':'kein Kästchen'; }
+}
+
+/* ---------- Hauptschleife ---------- */
+let lastVT=-1;
+function loop(){
+  const now=performance.now();
+  // Ersatzweg, falls der Browser keine Einzelbild-Meldungen liefert
+  if((!useVFC||now-lastVFC>500)&&stream&&video.readyState>=2&&video.currentTime!==lastVT){ lastVT=video.currentTime; analyse(now); }
+  drawPreview(); if(!$('setup').hidden) updateMeters();
+  if(!$('race').hidden) tickRace(now);
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Rennen ---------- */
+let race=null;
+function newRace(){
+  race={phase:'ready',goAt:0,endAt:0,best:null,lanes:[0,1].map(()=>({started:false,jump:false,last:0,laps:[],penalty:0,finished:false,finishAt:0,best:null}))};
+  renderBoard(); updateHead();
+}
+function target(){ return cfg.mode==='laps'?cfg.laps:null; }
+function updateHead(){
+  $('raceInfo').textContent = cfg.mode==='laps' ? `${cfg.laps} Runden` : `${String(cfg.mins).replace(".",",")} Minuten`;
+  $('bStart').hidden = !(race&&(race.phase==='ready'||race.phase==='done'));
+  $('bStart').textContent = race&&race.phase==='done'?'Neues Rennen':'Start';
+  $('bStop').hidden = !(race&&race.phase==='run');
+}
+function renderBoard(){
+  $('board').innerHTML=[0,1].map(i=>`
+  <section class="lane" id="lane${i}" style="--c:${esc(cfg.colors[i])}" tabindex="0" aria-label="Spur ${i+1}, tippen für Runde">
+    <div class="who"><span class="pos" id="pos${i}">${i+1}</span><span>${esc(cfg.names[i])}</span><span id="flag${i}"></span></div>
+    <div class="laps" id="lp${i}">0</div>
+    <div class="cur" id="cur${i}">–</div>
+    <div class="stats">
+      <div><span>Letzte</span><b id="last${i}">–</b></div>
+      <div><span>Beste</span><b id="best${i}">–</b></div>
+      <div><span>Abstand</span><b id="gap${i}">–</b></div>
+    </div>
+    <div class="lapList" id="list${i}"></div>
+    <div class="foot"><button data-undo="${i}">Runde abziehen</button><button data-add="${i}">+1 Runde</button></div>
+  </section>`).join('');
+  [0,1].forEach(i=>{ $('lane'+i).addEventListener('click',e=>{ const b=e.target.closest('button');
+    if(b&&b.dataset.undo!=null){ undoLap(+b.dataset.undo); return; }
+    onCross(i,performance.now(),'hand'); }); });
+  updateBoard(performance.now());
+}
+function onCross(i,t,src){
+  if(src==='cam') flash(i);
+  if(!race||$('race').hidden&&src!=='hand') return;
+  const L=race.lanes[i];
+  if(race.phase==='lights'){
+    if(!L.jump){ L.jump=true; L.started=true; L.penalty+=cfg.penalty; say(`Frühstart ${cfg.names[i]}! Eine Sekunde Strafe.`); beep(200,0.5); updateBoard(t); }
+    return;
+  }
+  if(race.phase!=='run'||L.finished) return;
+  if(src==='hand') flash(i);
+  if(!L.started){ L.started=true; L.last=t; beep(880,0.08,0.15); updateBoard(t); return; }
+  if(t-L.last<300) return;
+  const lap=(t-L.last)/1000; L.laps.push(lap); L.last=t;
+  beep(1040,0.08,0.15);
+  let msg='';
+  // nach einem Frühstart ist Runde 1 verkürzt (gemessen ab Grün) und zählt nicht als Bestzeit
+  const counts=!(L.jump&&L.laps.length===1);
+  if(counts){
+  if(L.best==null||lap<L.best) L.best=lap;
+  if(race.best==null||lap<race.best.t){ const first=race.best==null; race.best={t:lap,i};
+    if(!first&&L.laps.length>1) msg=`Schnellste Runde ${cfg.names[i]}, ${sayNum(lap)}.`; }
+  if(records.length<10||lap<records[records.length-1].t){
+    const wasTop=!records.length||lap<records[0].t;
+    records.push({t:lap,name:cfg.names[i],d:new Date().toLocaleDateString('de-DE')}); records.sort((a,b)=>a.t-b.t); records=records.slice(0,10); saveRec(); renderRecords();
+    if(wasTop&&records.length>1) msg=`Neuer Rekord! ${cfg.names[i]}, ${sayNum(lap)}.`;
+  }
+  }
+  const tg=target();
+  if(tg){
+    const left=tg-L.laps.length;
+    if(left<=0){ L.finished=true; L.finishAt=t; const done=race.lanes.filter(x=>x.finished).length;
+      say(done===1?`${cfg.names[i]} ist im Ziel!`:`${cfg.names[i]} ist auch im Ziel.`, true);
+      if(race.lanes.every(x=>x.finished)) setTimeout(()=>finishRace(),900);
+      updateBoard(t); return; }
+    if(left===1) msg=`Letzte Runde ${cfg.names[i]}! `+msg;
+    else if(left===3||left===5&&tg>=10) msg=`Noch ${left} Runden ${cfg.names[i]}. `+msg;
+  }
+  if(msg) say(msg);
+  updateBoard(t);
+}
+function undoLap(i){
+  if(!race) return; const L=race.lanes[i];
+  if(L.laps.length){ const lap=L.laps.pop(); L.last-=lap*1000; L.finished=false; const v=L.jump?L.laps.slice(1):L.laps; L.best=v.length?Math.min(...v):null;
+    if(race.phase==='done'){ race.phase='run'; } }
+  else if(L.started&&!L.jump){ L.started=false; }
+  updateBoard(performance.now()); updateHead();
+}
+function flash(i){ const el=$('lane'+i); if(!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function standings(){
+  // Reihenfolge: mehr Runden vorne; bei gleich vielen Runden zählt, wer seine letzte Runde früher abgeschlossen hat (+Strafe)
+  return [0,1].map(i=>{ const L=race.lanes[i]; const n=L.laps.length;
+    const at = L.finished ? L.finishAt : (n? L.last : Infinity);
+    return {i,n,score:(at===Infinity?Infinity:(at-race.goAt)/1000+L.penalty)}; })
+    .sort((a,b)=> b.n-a.n || a.score-b.score);
+}
+function updateBoard(t){
+  if(!race) return;
+  const tg=target(), st=standings();
+  st.forEach((s,k)=>{ $('pos'+s.i).textContent=k+1; });
+  for(let i=0;i<2;i++){
+    const L=race.lanes[i];
+    $('lp'+i).innerHTML=L.laps.length+(tg?`<small>/${tg}</small>`:'');
+    $('last'+i).textContent=fs(L.laps[L.laps.length-1]);
+    $('best'+i).textContent=fs(L.best);
+    $('flag'+i).innerHTML=(L.jump?`<span class="badge">Frühstart +${fs(cfg.penalty,0)} s</span>`:'')+(L.finished?' <span class="badge ok">Im Ziel</span>':'');
+    $('list'+i).textContent=L.laps.map((x,k)=>`R${k+1} ${fs(x)}${L.jump&&k===0?'*':''}`).reverse().join('  ·  ')+(L.jump&&L.laps.length?'   (* ab Grün, zählt nicht als Bestzeit)':'');
+    // Abstand zum Führenden
+    const me=st.find(s=>s.i===i), lead=st[0];
+    let g='–';
+    if(me!==lead&&race.phase!=='ready'){ if(me.n<lead.n) g=`−${lead.n-me.n} R`; else if(isFinite(me.score)&&isFinite(lead.score)) g='+'+fs(me.score-lead.score); }
+    $('gap'+i).textContent=g;
+  }
+}
+function tickRace(now){
+  if(!race) return;
+  let el=0;
+  if(race.phase==='run'){ el=(now-race.goAt)/1000;
+    if(cfg.mode==='time'){ const left=cfg.mins*60-el; $('raceClock').textContent=fs(Math.max(0,left),1);
+      if(left<=0) { finishRace(); return; }
+      if(!race.warned&&left<=30&&cfg.mins*60>45){ race.warned=true; say('Noch 30 Sekunden!'); }
+    } else $('raceClock').textContent=fs(el,1);
+    for(let i=0;i<2;i++){ const L=race.lanes[i];
+      $('cur'+i).textContent = L.finished?'Ziel':(L.started? fs((now-L.last)/1000,1) : 'warten auf Start'); }
+  } else if(race.phase==='ready'){ $('raceClock').textContent=cfg.mode==='time'?fs(cfg.mins*60,1):fs(0,1); for(let i=0;i<2;i++) $('cur'+i).textContent='bereit'; }
+}
+
+/* Ampel */
+let lightTimers=[];
+function startLights(){
+  unlockAudio();
+  if(!race||race.phase==='done') newRace();
+  race.phase='lights'; updateHead();
+  const bulbs=[...document.querySelectorAll('#lights .bulb')]; bulbs.forEach(b=>b.className='bulb');
+  $('lightsTxt').textContent='Bereit machen'; $('lights').hidden=false; $('bAbort').hidden=false;
+  say('Achtung!',true);
+  lightTimers.forEach(clearTimeout); lightTimers=[];
+  for(let k=0;k<5;k++) lightTimers.push(setTimeout(()=>{ bulbs[k].classList.add('on'); beep(520,0.2); },1500+k*1000));
+  const hold=1500+4*1000+800+Math.random()*1800;
+  lightTimers.push(setTimeout(()=>{
+    bulbs.forEach(b=>{ b.classList.remove('on'); b.classList.add('green'); });
+    beep(1046,0.5,0.3); $('lightsTxt').textContent='LOS!'; $('bAbort').hidden=true;
+    const t=performance.now(); race.phase='run'; race.goAt=t;
+    race.lanes.forEach(L=>{ if(L.jump) L.last=t; });
+    say('Los!',true); updateHead(); updateBoard(t);
+    lightTimers.push(setTimeout(()=>{$('lights').hidden=true;},900));
+  },hold));
+}
+function abortLights(){ lightTimers.forEach(clearTimeout); lightTimers=[]; $('lights').hidden=true; newRace(); }
+function finishRace(){
+  if(!race||race.phase==='done') return;
+  race.phase='done'; race.endAt=performance.now(); updateHead(); updateBoard(race.endAt);
+  const st=standings(), tg=target();
+  const rows=st.map((s,k)=>{ const L=race.lanes[s.i];
+    const tot = L.finished ? fs((L.finishAt-race.goAt)/1000+L.penalty) : (cfg.mode==='time'&&isFinite(s.score)? fs(s.score) : 'nicht im Ziel');
+    return `<tr><td><b>${k+1}.</b></td><td><span class="dot" style="background:${esc(cfg.colors[s.i])}"></span>${esc(cfg.names[s.i])}</td><td class="num">${s.n}</td><td class="num">${tot}</td><td class="num">${fs(L.best)}</td><td>${L.penalty?'+'+fs(L.penalty,0)+' s Frühstart':'–'}</td></tr>`; }).join('');
+  const w=st[0], tie=st[0].n===st[1].n&&st[0].score===st[1].score;
+  const winner=tie?'Unentschieden!':`${esc(cfg.names[w.i])} gewinnt!`;
+  const maxL=Math.max(...race.lanes.map(L=>L.laps.length));
+  let lapRows=''; for(let k=0;k<maxL;k++) lapRows+=`<tr><td>${k+1}</td>${[0,1].map(i=>{const x=race.lanes[i].laps[k]; const b=x!=null&&x===race.lanes[i].best; return `<td class="num">${x!=null?(b?'<b>'+fs(x)+'</b>':fs(x)):'–'}</td>`;}).join('')}</tr>`;
+  $('resultBox').innerHTML=`<h2>${winner}</h2>
+    <p class="hint">${cfg.mode==='laps'?tg+' Runden':String(cfg.mins).replace(".",",")+' Minuten'} · Frühstart-Strafe ist in der Gesamtzeit enthalten.</p>
+    <table><tr><th>Platz</th><th>Fahrer</th><th>Runden</th><th>Gesamt</th><th>Beste</th><th>Strafe</th></tr>${rows}</table>
+    ${maxL?`<details><summary>Alle Rundenzeiten</summary><table><tr><th>Runde</th><th>${esc(cfg.names[0])}</th><th>${esc(cfg.names[1])}</th></tr>${lapRows}</table></details>`:''}
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button id="bClose">Schließen</button><button class="go" id="bAgain">Revanche</button></div>`;
+  $('result').hidden=false;
+  $('bClose').onclick=()=>{$('result').hidden=true;};
+  $('bAgain').onclick=()=>{$('result').hidden=true; newRace(); startLights();};
+  say(tie?'Unentschieden!':`Rennen beendet. ${cfg.names[w.i]} gewinnt!`, true);
+  beep(784,0.15); setTimeout(()=>beep(1046,0.4),180);
+}
+
+/* ---------- Einstellungen ---------- */
+function renderRecords(){
+  $('records').innerHTML=records.length?records.map(r=>`<li class="num"><b>${fs(r.t)} s</b> · ${esc(r.name)} <span class="lbl">${esc(r.d)}</span></li>`).join(''):'<li class="lbl" style="list-style:none;margin-left:-20px">Noch keine Runden gefahren. Die 10 schnellsten Runden landen hier.</li>';
+}
+function bindSettings(){
+  for(let i=0;i<2;i++){ $('n'+i).value=cfg.names[i]; $('c'+i).value=cfg.colors[i];
+    $('n'+i).oninput=e=>{ cfg.names[i]=e.target.value.trim()||('Spieler '+(i+1)); save(); };
+    $('c'+i).oninput=e=>{ cfg.colors[i]=e.target.value; document.documentElement.style.setProperty('--l'+(i+1),e.target.value); save(); };
+    document.documentElement.style.setProperty('--l'+(i+1),cfg.colors[i]); }
+  $('modeLaps').checked=cfg.mode==='laps'; $('modeTime').checked=cfg.mode==='time';
+  document.querySelectorAll('input[name=mode]').forEach(r=>r.onchange=()=>{cfg.mode=r.value; save();});
+  $('laps').value=cfg.laps; $('laps').oninput=e=>{ const v=Math.round(+e.target.value); if(v>=1){cfg.laps=v; cfg.mode='laps'; $('modeLaps').checked=true; save();} };
+  $('mins').value=cfg.mins; $('mins').oninput=e=>{ const v=+e.target.value; if(v>0){cfg.mins=v; cfg.mode='time'; $('modeTime').checked=true; save();} };
+  $('speech').checked=cfg.speech; $('speech').onchange=e=>{cfg.speech=e.target.checked; save();};
+  $('sound').checked=cfg.sound; $('sound').onchange=e=>{cfg.sound=e.target.checked; save();};
+  const upd=()=>{ $('vSens').textContent=cfg.sens; $('vLock').textContent=fs(cfg.lock,1)+' s'; };
+  $('sens').value=cfg.sens; $('sens').oninput=e=>{cfg.sens=+e.target.value; upd(); save();};
+  $('lock').value=cfg.lock; $('lock').oninput=e=>{cfg.lock=+e.target.value; upd(); save();};
+  upd();
+}
+function show(view){
+  $('setup').hidden=view!=='setup'; $('race').hidden=view!=='race';
+  $('tabSetup').setAttribute('aria-pressed',view==='setup'); $('tabRace').setAttribute('aria-pressed',view==='race');
+  if(view==='race'){ if(!race||race.phase==='ready') newRace(); else { renderBoard(); updateHead(); } }
+}
+$('tabSetup').onclick=()=>show('setup');
+$('tabRace').onclick=()=>show('race');
+$('bToRace').onclick=()=>{ unlockAudio(); show('race'); };
+$('bStart').onclick=()=>startLights();
+$('bAbort').onclick=()=>abortLights();
+$('bStop').onclick=()=>finishRace();
+$('bClearRec').onclick=e=>{ const b=e.target; if(b.dataset.sure){ records=[]; saveRec(); renderRecords(); b.textContent='Bestzeiten löschen'; delete b.dataset.sure; }
+  else { b.dataset.sure='1'; b.textContent='Wirklich löschen?'; setTimeout(()=>{ if(b.dataset.sure){ delete b.dataset.sure; b.textContent='Bestzeiten löschen'; } },3000); } };
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,select,textarea')) return;
+  if($('race').hidden) return;
+  if(e.key==='1'||e.key==='2'){ onCross(+e.key-1,performance.now(),'hand'); }
+  else if(e.key===' '&&race&&(race.phase==='ready'||race.phase==='done')){ e.preventDefault(); startLights(); }
+});
+
+bindSettings(); renderRecords(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

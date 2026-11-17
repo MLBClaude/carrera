@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GO!!! Bahnplaner</title>
+<style>
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --text:#1d2330; --muted:#667085; --line:#e2e5ea;
+  --accent:#e2231a; --accent-ink:#fff; --ok:#15803d; --okbg:#e8f6ee; --warn:#b45309; --warnbg:#fdf3e3; --err:#b91c1c; --errbg:#fdeaea;
+  --canvas:#e6ece3; --grid:#d5ddd1; --grid2:#bfcbba; --table:#f7f2e8; --tableline:#b9a27a;
+  --asphalt:#3b4049; --edge:#f2f2f2; --slot:#121417; --copper:#b8733a; --sel:#ffb300; --port:#f97316; --active:#16a34a;
+  --btn:#f1f2f4; --btnh:#e5e7eb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121418; --panel:#1b1f26; --text:#e8ebf0; --muted:#98a2b3; --line:#2c323c;
+    --okbg:#11301f; --warnbg:#35270f; --errbg:#3a1515; --ok:#4ade80; --warn:#fbbf24; --err:#f87171;
+    --canvas:#1a211b; --grid:#232d24; --grid2:#2e3c30; --table:#2a261f; --tableline:#7d6a4a;
+    --btn:#252a33; --btnh:#2f3540;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121418; --panel:#1b1f26; --text:#e8ebf0; --muted:#98a2b3; --line:#2c323c;
+  --okbg:#11301f; --warnbg:#35270f; --errbg:#3a1515; --ok:#4ade80; --warn:#fbbf24; --err:#f87171;
+  --canvas:#1a211b; --grid:#232d24; --grid2:#2e3c30; --table:#2a261f; --tableline:#7d6a4a;
+  --btn:#252a33; --btnh:#2f3540;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0 10px 0 0;white-space:nowrap}
+header h1 span{color:var(--accent)}
+#trackName{border:1px solid var(--line);background:var(--bg);color:var(--text);border-radius:6px;padding:5px 8px;width:170px}
+button,select{font:inherit;color:var(--text);background:var(--btn);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover,select:hover{background:var(--btnh)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.sep{width:1px;height:24px;background:var(--line);margin:0 2px}
+main{flex:1;display:grid;grid-template-columns:280px 1fr 340px;min-height:0}
+aside{background:var(--panel);overflow:auto;padding:10px}
+#catalog{border-right:1px solid var(--line)}
+#side{border-left:1px solid var(--line)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 6px}
+h2:first-child{margin-top:2px}
+.item{display:flex;align-items:center;gap:8px;padding:5px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;background:var(--bg)}
+.item svg{width:56px;height:40px;flex:none}
+.item .nm{flex:1;min-width:0}
+.item .nm b{display:block;font-size:13px;font-weight:600}
+.item .nm small{color:var(--muted);font-size:11px}
+.item .btns{display:flex;flex-direction:column;gap:3px}
+.item .btns button{padding:2px 7px;font-size:12px;white-space:nowrap}
+#stage{position:relative;overflow:hidden;background:var(--canvas)}
+#svg{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--line);padding:14px 18px;border-radius:10px;text-align:center;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+#zoomBox{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
+.card{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:8px;background:var(--bg)}
+.status.ok{background:var(--okbg);border-color:transparent;color:var(--ok)}
+.status.warn{background:var(--warnbg);border-color:transparent;color:var(--warn)}
+.status.err{background:var(--errbg);border-color:transparent;color:var(--err)}
+.status b{display:block;margin-bottom:2px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 10px}
+.kv span:nth-child(even){font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.row input{width:64px}
+input[type=number]{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:3px 5px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:4px 3px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--muted);font-weight:600;font-size:11px}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+td input{width:44px;padding:2px 4px}
+tr.zero td{opacity:.45}
+.miss{color:var(--err);font-weight:700}
+.okc{color:var(--ok)}
+.note{color:var(--muted);font-size:11.5px;margin-top:6px}
+/* track pieces */
+.piece{cursor:move}
+.body{fill:var(--asphalt)}
+.piece.sel .body{stroke:var(--sel);stroke-width:7}
+.piece.over .body{fill:#8b2f2f}
+.edge{fill:none;stroke:var(--edge);stroke-width:3}
+.slotc{fill:none;stroke:var(--copper);stroke-width:10;stroke-linecap:round}
+.slot{fill:none;stroke:var(--slot);stroke-width:4;stroke-linecap:round}
+.curbw{fill:none;stroke:#fff;stroke-width:9}
+.curbr{fill:none;stroke:#d7261e;stroke-width:9;stroke-dasharray:14 14}
+.port{cursor:pointer}
+.port .dot{fill:var(--port);stroke:#fff;stroke-width:3}
+.port .arr{fill:var(--active);stroke:#fff;stroke-width:3}
+.port .hit{fill:transparent}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);max-width:560px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog h3{margin-top:0}
+.grid2{display:grid;grid-template-columns:1fr 90px;gap:6px 10px;align-items:center}
+.grid2 input{width:90px}
+#dlgGen{max-width:960px}
+.genGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin:12px 0}
+.genCard{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--canvas);display:flex;flex-direction:column;gap:6px}
+.genCard svg{width:100%;height:170px;background:var(--table);border-radius:6px}
+.genCard .st{font-size:12.5px}
+.genOpts{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+kbd{background:var(--btn);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px}
+@media (max-width:900px){
+  main{grid-template-columns:1fr;grid-template-rows:auto 60vh auto}
+  #catalog,#side{border:0}
+}
+#printHead{display:none}
+#printPlan{display:none}
+@media print{
+  header,#catalog,#zoomBox,#hint,#stage,.noprint{display:none!important}
+  html,body{height:auto}
+  body{background:#fff;color:#000;display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  main{display:block}
+  #printPlan{display:block;break-after:page;page-break-after:always}
+  #printPlan .ph{font-size:12px;margin:0 0 3mm;color:#000}
+  #printPlan .ph b{font-size:16px;margin-right:6px}
+  #printPlan svg{display:block;margin:0 auto}
+  #printPlan .body{fill:#3b4049}
+  #printPlan .edge{stroke:#f2f2f2}
+  #printHead{display:block;font-size:18px;font-weight:700;margin:0 0 6px}
+  #side{border:0;overflow:visible;padding:0}
+  .card{break-inside:avoid;background:#fff!important;color:#000;border-color:#bbb}
+  h2{color:#444}
+  td input{border:0;background:transparent;color:#000}
+}
+</style>
+<style id="pageStyle">@page{size:A4 landscape;margin:10mm}</style>
+</head>
+<body>
+<header>
+  <h1>Carrera <span>GO!!!</span> Bahnplaner</h1>
+  <input id="trackName" placeholder="Name der Bahn" aria-label="Name der Bahn">
+  <div class="sep"></div>
+  <button id="bNew" title="Neue leere Bahn">Neu</button>
+  <select id="bExample" aria-label="Beispiel laden">
+    <option value="">Beispiel laden …</option>
+    <option value="oval">Einfaches Oval</option>
+    <option value="spur">Rundkurs mit Kreuzung &amp; Engstelle</option>
+    <option value="loop">Rundkurs mit Looping &amp; Engstelle</option>
+  </select>
+  <div class="sep"></div>
+  <button id="bUndo" title="Rückgängig (Strg/Cmd+Z)">↶ Zurück</button>
+  <button id="bRedo" title="Wiederholen (Strg/Cmd+Shift+Z)">↷ Vor</button>
+  <button id="bFit" title="Ganze Bahn anzeigen">⤢ Einpassen</button>
+  <div class="sep"></div>
+  <button id="bSave">💾 Speichern</button>
+  <button id="bOpen">📂 Öffnen</button>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+  <button id="bPrint">🖨 Drucken / PDF</button>
+  <div class="sep"></div>
+  <button id="bGen" class="primary">🎲 Bahn-Generator</button>
+  <button id="bLaps" onclick="window.open('Carrera-GO-Rundenzaehler.html','_blank')">⏱ Rundenzähler</button>
+  <button id="bParams">📏 Maße</button>
+  <button id="bHelp">❓ Hilfe</button>
+</header>
+<div id="printPlan"></div>
+<main>
+  <aside id="catalog"></aside>
+  <section id="stage">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="g1" width="100" height="100" patternUnits="userSpaceOnUse">
+          <path d="M100 0H0V100" fill="none" stroke="var(--grid)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        </pattern>
+        <pattern id="g5" width="500" height="500" patternUnits="userSpaceOnUse">
+          <rect width="500" height="500" fill="url(#g1)"/>
+          <path d="M500 0H0V500" fill="none" stroke="var(--grid2)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        </pattern>
+      </defs>
+      <g id="world">
+        <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#g5)"/>
+        <g id="lTable"></g>
+        <g id="lPieces"></g>
+        <g id="lOver"></g>
+      </g>
+    </svg>
+    <div id="hint"><b>Los geht's!</b><br>Klicke links auf eine Schiene.<br>Sie wird automatisch am grünen Pfeil angesetzt.</div>
+    <div id="zoomBox" class="noprint">
+      <button id="zIn" aria-label="Hineinzoomen">＋</button>
+      <button id="zOut" aria-label="Herauszoomen">－</button>
+    </div>
+  </section>
+  <aside id="side"><div id="printHead"></div><div id="sideInner"></div></aside>
+</main>
+
+<dialog id="dlgParams">
+  <h3>📏 Schienenmaße (in mm)</h3>
+  <p class="note" style="margin-top:0">Die Werte stammen aus Händlerangaben und Messungen anderer Nutzer. Bitte miss eine Gerade und eine Kurve nach und korrigiere sie hier. Verbundene Schienen werden danach neu ausgerichtet.</p>
+  <div class="grid2" id="paramGrid"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
+    <button id="pReset">Standardwerte</button>
+    <button id="pCancel">Abbrechen</button>
+    <button id="pOk" class="primary">Übernehmen</button>
+  </div>
+</dialog>
+
+<dialog id="dlgHelp">
+  <h3>❓ So funktioniert's</h3>
+  <ul style="padding-left:18px;margin:0">
+    <li><b>Schiene anbauen:</b> Klicke links auf eine Schiene. Sie wird am <span style="color:var(--active)">grünen Pfeil</span> angesetzt. Bei Kurven wählst du <b>↶ links</b> oder <b>↷ rechts</b>.</li>
+    <li><b>Woanders weiterbauen:</b> Klicke auf einen <span style="color:var(--port)">orangen Punkt</span> (offenes Ende). Er wird dann zum grünen Pfeil.</li>
+    <li><b>Schiene auswählen:</b> Draufklicken. Rechts kannst du sie löschen oder die Bahn drehen.</li>
+    <li><b>Verschieben:</b> Schiene ziehen. Das zusammenhängende Bahnstück bewegt sich mit. Lässt du es nahe an einem offenen Ende los, rastet es ein.</li>
+    <li><b>Ansicht:</b> Leere Fläche ziehen = verschieben, Mausrad / Touchpad = zoomen.</li>
+    <li><b>Geschlossen?</b> Rechts oben steht, ob die Bahn geschlossen ist oder wo eine Lücke bleibt. Rot gefärbte Schienen überschneiden sich.</li>
+    <li><b>Platte:</b> Gib rechts die Größe deines Tisches / Bodens ein. Die Bahn muss auf der hellen Fläche liegen.</li>
+  </ul>
+  <h3 style="margin-top:14px">Tastenkürzel</h3>
+  <div class="grid2" style="grid-template-columns:auto 1fr">
+    <kbd>G</kbd><span>Gerade anbauen</span>
+    <kbd>L</kbd> <span>Kurve 1/45° links</span>
+    <kbd>R</kbd><span>Kurve 1/45° rechts</span>
+    <kbd>Entf / ⌫</kbd><span>Ausgewählte Schiene löschen (ohne Auswahl: letzte Schiene)</span>
+    <kbd>Q / E</kbd><span>Ausgewähltes Bahnstück drehen</span>
+    <kbd>Strg/Cmd+Z</kbd><span>Rückgängig</span>
+    <kbd>Esc</kbd><span>Auswahl aufheben</span>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end"><button id="hOk" class="primary">Alles klar</button></div>
+</dialog>
+
+<dialog id="dlgGen">
+  <h3>🎲 Bahn-Generator</h3>
+  <p class="note" style="margin-top:0">Der Generator baut aus deinen Schienen zufällige Bahnen, die geschlossen sind und sich nicht überschneiden. Grundlage ist die Spalte „Habe“ in der Stückliste.</p>
+  <div id="genInv" class="card"></div>
+  <div class="genOpts">
+    <label><input type="checkbox" id="genSpecial" checked> Sonderschienen einbauen (Looping, Kreuzung, Engstelle, Steilkurven …)</label>
+    <label><input type="checkbox" id="genFit" checked> Muss auf die Platte passen (<span id="genTable"></span>)</label>
+    <label>Größe:
+      <select id="genSize">
+        <option value="0.3">kompakt</option>
+        <option value="0.65" selected>mittel</option>
+        <option value="1">möglichst viele Schienen</option>
+      </select></label>
+  </div>
+  <div class="row"><button class="primary" id="genGo">🎲 Vorschläge erzeugen</button><span id="genMsg" class="note" style="margin:0"></span></div>
+  <div id="genRes" class="genGrid"></div>
+  <div class="row" style="justify-content:flex-end"><button id="genClose">Schließen</button></div>
+</dialog>
+
+<script>
+"use strict";
+const DEG = Math.PI/180, TOL = 2;
+const DEFAULT_P = {gerade:342, breite:114, spur:57, r1:171, r2:285, r3:399, kurz:228, loopL:456, loopOff:114, loopD:230};
+const PARAM_LABELS = {
+  gerade:'Gerade 1/1 – Länge', breite:'Schienenbreite', spur:'Abstand der beiden Spuren',
+  r1:'Kurve 1 – Radius (Mitte)', r2:'Kurve 2 – Radius (Mitte)', r3:'Kurve 3 – Radius (Mitte)',
+  kurz:'Kreuzung / Engstelle / Spurwechsel – Länge', loopL:'Looping – Länge (von oben gesehen)',
+  loopOff:'Looping – seitlicher Versatz', loopD:'Looping – Durchmesser (für Streckenlänge)'
+};
+let P = {...DEFAULT_P};
+
+const CATALOG = [
+  {group:'Geraden', items:[
+    {id:'start', name:'Start/Ziel-Gerade', art:'aus Grundpackung', kind:'straight', len:()=>P.gerade, deco:'start'},
+    {id:'g1', name:'Gerade 1/1', art:'61602', kind:'straight', len:()=>P.gerade},
+    {id:'g2', name:'Gerade 1/2', art:'–', kind:'straight', len:()=>P.gerade/2},
+    {id:'g3', name:'Gerade 1/3', art:'–', kind:'straight', len:()=>P.gerade/3},
+  ]},
+  {group:'Kurven', items:[
+    {id:'k90', name:'Kurve 1/90°', art:'61603', kind:'curve', r:()=>P.r1, a:90},
+    {id:'k1', name:'Kurve 1/45°', art:'61611', kind:'curve', r:()=>P.r1, a:45},
+    {id:'k2', name:'Kurve 2/45°', art:'61617', kind:'curve', r:()=>P.r2, a:45},
+    {id:'k3', name:'Kurve 3/30°', art:'61645', kind:'curve', r:()=>P.r3, a:30},
+    {id:'sk1', name:'Steilkurve 1/45°', art:'61612', kind:'curve', r:()=>P.r1, a:45, deco:'bank'},
+    {id:'sk2', name:'Steilkurve 2/45°', art:'61646', kind:'curve', r:()=>P.r2, a:45, deco:'bank'},
+  ]},
+  {group:'Sonderschienen', items:[
+    {id:'loop', name:'Looping', art:'61613', kind:'loop', sided:true},
+    {id:'xspur', name:'Kreuzung (Spuren tauschen)', art:'aus Ausbauset 1 (61600)', kind:'straight', len:()=>P.kurz, deco:'laneswap'},
+    {id:'eng', name:'Engstelle (Verengung)', art:'61610', kind:'straight', len:()=>P.kurz, deco:'narrow'},
+    {id:'schikane', name:'Schikane', art:'–', kind:'straight', len:()=>P.gerade, deco:'chicane'},
+    {id:'spurw', name:'Spurwechsel (Digital 143)', art:'61609', kind:'straight', len:()=>P.kurz, deco:'laneswitch'},
+  ]},
+];
+const ITEM = {}; CATALOG.forEach(g=>g.items.forEach(it=>ITEM[it.id]=it));
+const hasSides = it => it.kind==='curve' || it.sided;
+
+/* ---------- state ---------- */
+let S = {pieces:[], nextId:1, active:null, table:{w:200,h:120}, inv:{}, name:''};
+let sel = null, undoStack = [], redoStack = [];
+let view = {s:0.5, tx:60, ty:60};
+let A = null; // last analysis
+
+/* ---------- geometry ---------- */
+let gcache = {}, icache = {}, ocache = {};
+const norm = d => ((d%360)+360)%360;
+const angDiff = (a,b) => Math.abs(((a-b)%360+540)%360-180);
+function geom(t,m){
+  const key=t+'|'+m; if(gcache[key]) return gcache[key];
+  const it=ITEM[t]; let g;
+  if(it.kind==='straight'){
+    const L=it.len(); g={center:[[[0,0],[L,0]]], ports:[{x:0,y:0,d:180},{x:L,y:0,d:0}], len:L};
+  } else if(it.kind==='curve'){
+    const R=it.r(), Ag=it.a, n=Math.max(8,Math.ceil(Ag/3)), pts=[];
+    for(let i=0;i<=n;i++){const a=Ag*i/n*DEG; pts.push([R*Math.sin(a), m*(R-R*Math.cos(a))]);}
+    g={center:[pts], ports:[{x:0,y:0,d:180},{x:pts[n][0],y:pts[n][1],d:m*Ag}], len:R*Ag*DEG};
+  } else if(it.kind==='loop'){
+    const L=P.loopL, o=P.loopOff*m, n=30, pts=[];
+    for(let i=0;i<=n;i++){const u=i/n; pts.push([L*u, o*(3*u*u-2*u*u*u)]);}
+    g={center:[pts], ports:[{x:0,y:0,d:180},{x:L,y:o,d:0}], len:L+Math.PI*P.loopD};
+  }
+  return gcache[key]=g;
+}
+function densify(path){
+  if(path.length>2) return path;
+  const [a,b]=path, n=24, out=[];
+  for(let i=0;i<=n;i++) out.push([a[0]+(b[0]-a[0])*i/n, a[1]+(b[1]-a[1])*i/n]);
+  return out;
+}
+function offsetPts(pts,f){
+  const n=pts.length, out=[];
+  for(let i=0;i<n;i++){
+    const a=pts[Math.max(0,i-1)], b=pts[Math.min(n-1,i+1)];
+    const dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1;
+    const o=typeof f==='function'?f(i/(n-1)):f;
+    out.push([pts[i][0]-dy/l*o, pts[i][1]+dx/l*o]);
+  }
+  return out;
+}
+const fmt = v => v.toFixed(1);
+const lineD = pts => 'M'+pts.map(p=>fmt(p[0])+' '+fmt(p[1])).join(' L');
+const polyD = pts => lineD(pts)+'Z';
+const bump = u => Math.pow(Math.min(1, Math.sin(Math.PI*u)*1.7), 2);
+
+function pieceInner(t,m){
+  const key=t+'|'+m; if(icache[key]) return icache[key];
+  const it=ITEM[t], g=geom(t,m), w2=P.breite/2, s2=P.spur/2;
+  const paths=g.center.map(densify);
+  const bw = it.deco==='narrow' ? u=>w2*(1-0.28*bump(u)) : ()=>w2;
+  const so = it.deco==='narrow' ? u=>s2*(1-0.72*bump(u)) : ()=>s2;
+  let h='';
+  for(const c of paths){ const L=offsetPts(c,u=>bw(u)), R=offsetPts(c,u=>-bw(u)); h+=`<path class="body" d="${polyD(L.concat(R.reverse()))}"/>`; }
+  if(it.deco==='bank'){ const c=paths[0], o=-m*(w2+3); const d=lineD(offsetPts(c,o)); h+=`<path class="curbw" d="${d}"/><path class="curbr" d="${d}"/>`; }
+  for(const c of paths){ h+=`<path class="edge" d="${lineD(offsetPts(c,u=>bw(u)-5))}"/><path class="edge" d="${lineD(offsetPts(c,u=>-bw(u)+5))}"/>`; }
+  if(it.deco==='start'){
+    const L=it.len(), q=P.breite/6;
+    for(let i=0;i<6;i++) for(let j=0;j<2;j++) h+=`<rect x="${fmt(L/2-q+j*q)}" y="${fmt(-w2+i*q)}" width="${fmt(q)}" height="${fmt(q)}" fill="${(i+j)%2?'#111':'#fff'}"/>`;
+  }
+  let slotD=[];
+  if(it.deco==='laneswap'){
+    const L=it.len();
+    for(const sg of [1,-1]) slotD.push(`M0 ${fmt(sg*s2)} L${fmt(L*.15)} ${fmt(sg*s2)} C${fmt(L*.45)} ${fmt(sg*s2)} ${fmt(L*.55)} ${fmt(-sg*s2)} ${fmt(L*.85)} ${fmt(-sg*s2)} L${fmt(L)} ${fmt(-sg*s2)}`);
+  } else for(const c of paths) for(const sg of [1,-1]) slotD.push(lineD(offsetPts(c,u=>sg*so(u))));
+  if(it.deco==='laneswitch'){
+    const L=it.len();
+    slotD.push(`M${fmt(L*.3)} ${fmt(-s2)} C${fmt(L*.5)} ${fmt(-s2)} ${fmt(L*.5)} ${fmt(s2)} ${fmt(L*.7)} ${fmt(s2)}`);
+    slotD.push(`M${fmt(L*.3)} ${fmt(s2)} C${fmt(L*.5)} ${fmt(s2)} ${fmt(L*.5)} ${fmt(-s2)} ${fmt(L*.7)} ${fmt(-s2)}`);
+  }
+  for(const d of slotD) h+=`<path class="slotc" d="${d}"/>`;
+  for(const d of slotD) h+=`<path class="slot" d="${d}"/>`;
+  if(it.deco==='chicane'){
+    const L=it.len();
+    h+=`<rect x="${fmt(L*.25)}" y="${fmt(w2-30)}" width="${fmt(L*.18)}" height="22" rx="4" fill="#f59e0b" stroke="#fff" stroke-width="2"/>`;
+    h+=`<rect x="${fmt(L*.57)}" y="${fmt(-w2+8)}" width="${fmt(L*.18)}" height="22" rx="4" fill="#f59e0b" stroke="#fff" stroke-width="2"/>`;
+  }
+  if(it.kind==='loop'){
+    const L=P.loopL, o=P.loopOff*m;
+    h+=`<rect x="${fmt(L*.18)}" y="${fmt(o/2-w2-6)}" width="${fmt(L*.64)}" height="${fmt(P.breite+12)}" rx="40" fill="rgba(20,22,26,.55)" stroke="#fff" stroke-width="3" stroke-dasharray="10 8"/>`;
+    h+=`<text x="${fmt(L/2)}" y="${fmt(o/2)}" fill="#fff" font-size="34" font-weight="700" text-anchor="middle" dominant-baseline="central" font-family="sans-serif">LOOPING</text>`;
+  }
+  return icache[key]=h;
+}
+function localOutline(t,m){
+  const key=t+'|'+m; if(ocache[key]) return ocache[key];
+  const w2=P.breite/2, out=[];
+  for(const c of geom(t,m).center.map(densify)){ out.push(...offsetPts(c,w2), ...offsetPts(c,-w2)); }
+  return ocache[key]=out;
+}
+
+/* ---------- transforms & ports ---------- */
+function tf(p,x,y){ const a=p.r*DEG, c=Math.cos(a), s=Math.sin(a); return [p.x+c*x-s*y, p.y+s*x+c*y]; }
+const byId = id => S.pieces.find(p=>p.id===id);
+function wport(p,i){ const q=geom(p.t,p.m).ports[i]; const [x,y]=tf(p,q.x,q.y); return {pid:p.id,i,x,y,d:norm(q.d+p.r)}; }
+function wports(p){ return geom(p.t,p.m).ports.map((_,i)=>wport(p,i)); }
+function placeAt(p, portIdx, target){
+  const q=geom(p.t,p.m).ports[portIdx];
+  p.r=norm(target.d+180-q.d); p.x=0; p.y=0;
+  const [x,y]=tf(p,q.x,q.y); p.x=target.x-x; p.y=target.y-y;
+}
+function pieceBBox(ids){
+  let a=[Infinity,Infinity,-Infinity,-Infinity];
+  for(const p of S.pieces){ if(ids && !ids.includes(p.id)) continue;
+    for(const [lx,ly] of localOutline(p.t,p.m)){ const [x,y]=tf(p,lx,ly); if(x<a[0])a[0]=x; if(y<a[1])a[1]=y; if(x>a[2])a[2]=x; if(y>a[3])a[3]=y; } }
+  return a[0]===Infinity?null:a;
+}
+
+/* ---------- analysis ---------- */
+function analyze(){
+  const all=[]; for(const p of S.pieces) all.push(...wports(p));
+  const conn=new Map();
+  for(let a=0;a<all.length;a++) for(let b=a+1;b<all.length;b++){
+    const P1=all[a], P2=all[b]; if(P1.pid===P2.pid) continue;
+    if(Math.abs(P1.x-P2.x)<TOL && Math.abs(P1.y-P2.y)<TOL && angDiff(P1.d,P2.d+180)<2){ conn.set(P1.pid+':'+P1.i,P2); conn.set(P2.pid+':'+P2.i,P1); }
+  }
+  const open=all.filter(q=>!conn.has(q.pid+':'+q.i));
+  const gaps=[];
+  for(let a=0;a<open.length;a++) for(let b=a+1;b<open.length;b++){
+    const P1=open[a], P2=open[b]; if(P1.pid===P2.pid) continue;
+    const d=Math.hypot(P1.x-P2.x,P1.y-P2.y), ad=angDiff(P1.d,P2.d+180);
+    if(d<90 && ad<30) gaps.push({a:P1,b:P2,d,ad});
+  }
+  const adj=new Set(); conn.forEach((B,k)=>{const pid=+k.split(':')[0]; adj.add(pid+'-'+B.pid);});
+  // overlap detection with spatial hash
+  const over=new Set(), cell=120, hash=new Map(), thr=P.breite*0.8;
+  const pts=[];
+  for(const p of S.pieces){
+    for(const c of geom(p.t,p.m).center){
+      for(let i=0;i<c.length-1;i++){
+        const [x1,y1]=c[i],[x2,y2]=c[i+1], L=Math.hypot(x2-x1,y2-y1), n=Math.max(1,Math.ceil(L/25));
+        for(let k=0;k<=n;k++){ const u=k/n; pts.push([...tf(p,x1+(x2-x1)*u,y1+(y2-y1)*u),p.id]); }
+      }
+    }
+  }
+  for(const pt of pts){ const k=Math.floor(pt[0]/cell)+','+Math.floor(pt[1]/cell); if(!hash.has(k)) hash.set(k,[]); hash.get(k).push(pt); }
+  for(const pt of pts){
+    const cx=Math.floor(pt[0]/cell), cy=Math.floor(pt[1]/cell);
+    for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++){
+      const arr=hash.get((cx+i)+','+(cy+j)); if(!arr) continue;
+      for(const q of arr){ if(q[2]<=pt[2]) continue; if(adj.has(pt[2]+'-'+q[2])) continue;
+        if(Math.hypot(q[0]-pt[0],q[1]-pt[1])<thr){ over.add(pt[2]); over.add(q[2]); } }
+    }
+  }
+  return {all,conn,open,gaps,over};
+}
+function groupOf(id){
+  const an=A||analyze(), seen=new Set([id]), q=[id];
+  while(q.length){ const cur=q.shift(); const p=byId(cur); if(!p) continue;
+    geom(p.t,p.m).ports.forEach((_,i)=>{ const B=an.conn.get(cur+':'+i); if(B && !seen.has(B.pid)){ seen.add(B.pid); q.push(B.pid);} }); }
+  return [...seen];
+}
+
+/* ---------- undo ---------- */
+const snapshot = () => JSON.stringify({pieces:S.pieces,nextId:S.nextId,active:S.active});
+function restore(s){ const o=JSON.parse(s); S.pieces=o.pieces; S.nextId=o.nextId; S.active=o.active; sel=null; }
+function pushUndo(snap){ undoStack.push(snap||snapshot()); if(undoStack.length>300) undoStack.shift(); redoStack=[]; }
+function undo(){ if(!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); render(); }
+function redo(){ if(!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); render(); }
+
+/* ---------- editing ---------- */
+function addPiece(t,m=1,silent=false){
+  if(!silent) pushUndo();
+  const p={id:S.nextId++, t, m, x:0, y:0, r:0};
+  const an=analyze();
+  const act=S.active && an.open.find(q=>q.pid===S.active.pid && q.i===S.active.i);
+  if(act){ placeAt(p,0,act); }
+  else if(!S.pieces.length){ p.x=250; p.y=250; p.r=0; }
+  else { const bb=pieceBBox(); p.x=bb[0]; p.y=bb[3]+250; p.r=0; }
+  S.pieces.push(p);
+  const an2=analyze();
+  const nextOpen=an2.open.filter(q=>q.pid===p.id && q.i!==0);
+  const pick=nextOpen.find(q=>q.i===1)||nextOpen[0];
+  S.active = pick ? {pid:p.id,i:pick.i} : null;
+  sel=null;
+  if(!silent){ render(); ensureVisible(p); }
+  return p;
+}
+function deletePiece(id){
+  const p=byId(id); if(!p) return;
+  pushUndo();
+  const ports=wports(p);
+  S.pieces=S.pieces.filter(q=>q.id!==id);
+  if(sel===id) sel=null;
+  const an=analyze();
+  let best=null;
+  for(const pp of ports){ best=an.open.find(q=>Math.hypot(q.x-pp.x,q.y-pp.y)<TOL); if(best) break; }
+  S.active = best ? {pid:best.pid,i:best.i} : null;
+  render();
+}
+function rotateGroup(ids,deg,cx,cy){
+  const a=deg*DEG, c=Math.cos(a), s=Math.sin(a);
+  for(const id of ids){ const p=byId(id); const dx=p.x-cx, dy=p.y-cy; p.x=cx+c*dx-s*dy; p.y=cy+s*dx+c*dy; p.r=norm(p.r+deg); }
+}
+function rotateSelected(deg){
+  if(sel==null) return;
+  pushUndo(); const ids=groupOf(sel), bb=pieceBBox(ids);
+  rotateGroup(ids,deg,(bb[0]+bb[2])/2,(bb[1]+bb[3])/2); render();
+}
+function trySnap(ids){
+  const an=analyze(), set=new Set(ids);
+  let best=null;
+  for(const a of an.open){ if(!set.has(a.pid)) continue;
+    for(const b of an.open){ if(set.has(b.pid)) continue;
+      const d=Math.hypot(a.x-b.x,a.y-b.y), ad=angDiff(a.d,b.d+180);
+      if(d<45 && ad<20 && (!best || d<best.d)) best={a,b,d}; } }
+  if(!best) return;
+  const delta=((best.b.d+180-best.a.d)%360+540)%360-180;
+  rotateGroup(ids,delta,best.a.x,best.a.y);
+  const dx=best.b.x-best.a.x, dy=best.b.y-best.a.y;
+  for(const id of ids){ const p=byId(id); p.x+=dx; p.y+=dy; }
+}
+function centerOnTable(){
+  const bb=pieceBBox(); if(!bb) return; pushUndo();
+  const dx=S.table.w*5-(bb[0]+bb[2])/2, dy=S.table.h*5-(bb[1]+bb[3])/2;
+  for(const p of S.pieces){ p.x+=dx; p.y+=dy; } render(); fit();
+}
+function applyParams(newP){
+  const an=analyze(), edges=[];
+  an.conn.forEach((B,k)=>{ const [pid,i]=k.split(':').map(Number); edges.push([pid,i,B.pid,B.i]); });
+  pushUndo();
+  P={...newP}; gcache={}; icache={}; ocache={};
+  const placed=new Set();
+  for(const root of S.pieces){
+    if(placed.has(root.id)) continue; placed.add(root.id);
+    const q=[root];
+    while(q.length){ const a=q.shift();
+      for(const [pa,ia,pb,ib] of edges){ if(pa!==a.id||placed.has(pb)) continue;
+        const b=byId(pb); placeAt(b,ib,wport(a,ia)); placed.add(pb); q.push(b); } }
+  }
+  renderCatalog(); render();
+}
+
+/* ---------- view ---------- */
+const svg=document.getElementById('svg'), world=document.getElementById('world');
+const lPieces=document.getElementById('lPieces'), lOver=document.getElementById('lOver'), lTable=document.getElementById('lTable');
+function applyView(){ world.setAttribute('transform',`matrix(${view.s},0,0,${view.s},${view.tx},${view.ty})`); }
+function toWorld(e){ const r=svg.getBoundingClientRect(); return [(e.clientX-r.left-view.tx)/view.s,(e.clientY-r.top-view.ty)/view.s]; }
+function fit(){
+  const r=svg.getBoundingClientRect(); if(!r.width) return;
+  let bb=pieceBBox(); const tb=[0,0,S.table.w*10,S.table.h*10];
+  bb = bb ? [Math.min(bb[0],tb[0]),Math.min(bb[1],tb[1]),Math.max(bb[2],tb[2]),Math.max(bb[3],tb[3])] : tb;
+  const pad=60, w=bb[2]-bb[0]+2*pad, h=bb[3]-bb[1]+2*pad;
+  view.s=Math.min(r.width/w, r.height/h);
+  view.tx=(r.width-(bb[2]+bb[0])*view.s)/2; view.ty=(r.height-(bb[3]+bb[1])*view.s)/2;
+  applyView(); renderOverlay();
+}
+function zoomAt(f,cx,cy){
+  const ns=Math.min(5,Math.max(0.03,view.s*f)); f=ns/view.s;
+  view.tx=cx-(cx-view.tx)*f; view.ty=cy-(cy-view.ty)*f; view.s=ns; applyView(); renderOverlay();
+}
+function ensureVisible(p){
+  const r=svg.getBoundingClientRect(), [x,y]=tf(p,0,0);
+  const sx=x*view.s+view.tx, sy=y*view.s+view.ty, m=80;
+  if(sx<m||sy<m||sx>r.width-m||sy>r.height-m){ view.tx+= r.width/2-sx; view.ty+= r.height/2-sy; applyView(); renderOverlay(); }
+}
+
+/* ---------- render ---------- */
+function render(){
+  A=analyze();
+  if(S.active && !A.open.find(q=>q.pid===S.active.pid&&q.i===S.active.i)) S.active=null;
+  let h='';
+  for(const p of S.pieces){
+    h+=`<g class="piece${p.id===sel?' sel':''}${A.over.has(p.id)?' over':''}" data-id="${p.id}" transform="translate(${fmt(p.x)} ${fmt(p.y)}) rotate(${p.r.toFixed(4)})">${pieceInner(p.t,p.m)}</g>`;
+  }
+  lPieces.innerHTML=h;
+  document.getElementById('hint').style.display=S.pieces.length?'none':'block';
+  renderTable(); renderOverlay(); renderSide(); save();
+}
+function renderTable(){
+  const W=S.table.w*10, H=S.table.h*10;
+  lTable.innerHTML=`<rect x="0" y="0" width="${W}" height="${H}" fill="var(--table)" stroke="var(--tableline)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-dasharray="8 5"/>`;
+}
+function renderOverlay(){
+  if(!A) return;
+  const k=1/view.s, fs=12.5*k;
+  let h='';
+  // table label
+  h+=`<text x="0" y="${-6*k}" font-size="${fs}" fill="var(--muted)" font-family="sans-serif">Platte ${S.table.w} × ${S.table.h} cm</text>`;
+  // bbox
+  const bb=pieceBBox();
+  if(bb){
+    h+=`<rect x="${bb[0]}" y="${bb[1]}" width="${bb[2]-bb[0]}" height="${bb[3]-bb[1]}" fill="none" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" stroke-dasharray="4 4"/>`;
+    h+=`<text x="${(bb[0]+bb[2])/2}" y="${bb[3]+16*k}" font-size="${fs}" text-anchor="middle" fill="var(--text)" font-weight="600" font-family="sans-serif">${cm(bb[2]-bb[0])} cm</text>`;
+    h+=`<text x="${bb[2]+8*k}" y="${(bb[1]+bb[3])/2}" font-size="${fs}" fill="var(--text)" font-weight="600" font-family="sans-serif" dominant-baseline="central">${cm(bb[3]-bb[1])} cm</text>`;
+  }
+  // gaps
+  for(const g of A.gaps){
+    h+=`<line x1="${g.a.x}" y1="${g.a.y}" x2="${g.b.x}" y2="${g.b.y}" stroke="var(--err)" stroke-width="3" vector-effect="non-scaling-stroke" stroke-dasharray="5 4"/>`;
+    h+=`<text x="${(g.a.x+g.b.x)/2+10*k}" y="${(g.a.y+g.b.y)/2-10*k}" font-size="${fs}" fill="var(--err)" font-weight="700" font-family="sans-serif">Lücke ${cm(g.d)} cm${g.ad>=1?', '+g.ad.toFixed(0)+'° schief':''}</text>`;
+  }
+  // ports
+  const r=Math.max(14,7*k);
+  for(const q of A.open){
+    const isAct=S.active && S.active.pid===q.pid && S.active.i===q.i;
+    const c=Math.cos(q.d*DEG), s=Math.sin(q.d*DEG);
+    if(isAct){
+      const L=r*2.6, W=r*1.3;
+      const pts=[[q.x+c*L,q.y+s*L],[q.x-s*W,q.y+c*W],[q.x+s*W,q.y-c*W]];
+      h+=`<g class="port"><circle class="hit" cx="${q.x}" cy="${q.y}" r="${r*2}"/><polygon class="arr" vector-effect="non-scaling-stroke" points="${pts.map(p=>fmt(p[0])+','+fmt(p[1])).join(' ')}"/></g>`;
+    } else {
+      h+=`<g class="port" data-pid="${q.pid}" data-i="${q.i}"><circle class="hit" cx="${q.x}" cy="${q.y}" r="${r*1.8}"/><circle class="dot" vector-effect="non-scaling-stroke" cx="${fmt(q.x+c*r*.6)}" cy="${fmt(q.y+s*r*.6)}" r="${r}"/></g>`;
+    }
+  }
+  lOver.innerHTML=h;
+}
+const cm = mm => (mm/10).toLocaleString('de-DE',{maximumFractionDigits:1});
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderSide(){
+  const el=document.getElementById('sideInner');
+  let h='';
+  // status
+  const n=S.pieces.length;
+  if(!n) h+=`<div class="card status"><b>Noch keine Schienen</b>Wähle links eine Schiene aus oder lade oben ein Beispiel.</div>`;
+  else if(!A.open.length) h+=`<div class="card status ok"><b>✓ Die Bahn ist geschlossen</b>Alle Schienen passen zusammen und können so aufgebaut werden.</div>`;
+  else {
+    h+=`<div class="card status warn"><b>⚠ Bahn ist noch offen</b>${A.open.length} offene Ende${A.open.length===1?'':'n'} (orange Punkte / grüner Pfeil).`;
+    if(A.gaps.length) h+=`<br>Kleinste Lücke: <b style="display:inline">${cm(Math.min(...A.gaps.map(g=>g.d)))} cm</b>. Kleine Lücken lassen sich in echt oft nicht schließen, versuche eine andere Kurve oder Gerade.`;
+    h+=`</div>`;
+  }
+  if(A.over.size) h+=`<div class="card status err"><b>✗ Schienen überschneiden sich</b>${A.over.size} Schienen (rot markiert) liegen übereinander. Das geht nur mit einer Kreuzung oder einer Brücke.</div>`;
+  // stats
+  const bb=pieceBBox();
+  let len=0; for(const p of S.pieces) len+=geom(p.t,p.m).len;
+  const hasLoop=S.pieces.some(p=>ITEM[p.t].kind==='loop');
+  h+=`<h2>Kennzahlen</h2><div class="card kv">
+    <span>Anzahl Schienen</span><span>${n}</span>
+    <span>Streckenlänge${hasLoop?' (ca.)':''}</span><span>${(len/1000).toLocaleString('de-DE',{maximumFractionDigits:2})} m</span>
+    <span>Platzbedarf</span><span>${bb?cm(bb[2]-bb[0])+' × '+cm(bb[3]-bb[1])+' cm':'–'}</span>
+  </div>`;
+  // table
+  let fitTxt='';
+  if(bb){
+    const W=S.table.w*10, H=S.table.h*10, bw=bb[2]-bb[0], bh=bb[3]-bb[1];
+    const inside=bb[0]>=-1&&bb[1]>=-1&&bb[2]<=W+1&&bb[3]<=H+1;
+    const canFit=(bw<=W&&bh<=H)||(bw<=H&&bh<=W);
+    if(inside) fitTxt=`<div class="okc" style="margin-top:6px">✓ Die Bahn liegt komplett auf der Platte.</div>`;
+    else if(canFit) fitTxt=`<div style="margin-top:6px;color:var(--warn)">⚠ Die Bahn ragt über die Platte, passt aber drauf. <button id="bCenter" class="noprint" style="margin-top:4px">Bahn auf Platte zentrieren</button></div>`;
+    else fitTxt=`<div class="miss" style="margin-top:6px">✗ Die Bahn ist größer als die Platte.</div>`;
+  }
+  h+=`<h2>Platz / Platte</h2><div class="card"><div class="row">
+      <label>Breite <input type="number" id="tW" min="20" max="2000" value="${S.table.w}"> cm</label>
+      <label>Tiefe <input type="number" id="tH" min="20" max="2000" value="${S.table.h}"> cm</label></div>${fitTxt}</div>`;
+  // selection
+  if(sel!=null && byId(sel)){
+    const p=byId(sel), it=ITEM[p.t];
+    h+=`<h2 class="noprint">Ausgewählt</h2><div class="card noprint"><div style="margin-bottom:6px"><b>${esc(it.name)}</b>${hasSides(it)?(p.m>0?' (rechts)':' (links)'):''}</div>
+      <div class="row"><button id="sRotL" title="Taste Q">⟲ 15°</button><button id="sRotR" title="Taste E">⟳ 15°</button><button id="sDel" style="color:var(--err)">🗑 Löschen</button></div>
+      <div class="note">Drehen wirkt auf das ganze zusammenhängende Bahnstück.</div></div>`;
+  }
+  // parts list
+  const cnt={}, side={};
+  for(const p of S.pieces){ cnt[p.t]=(cnt[p.t]||0)+1; if(hasSides(ITEM[p.t])){ side[p.t]=side[p.t]||{l:0,r:0}; side[p.t][p.m>0?'r':'l']++; } }
+  let rows='', missingAny=false;
+  for(const g of CATALOG) for(const it of g.items){
+    const need=cnt[it.id]||0, have=S.inv[it.id]||0, miss=Math.max(0,need-have);
+    if(miss) missingAny=true;
+    let sub=''; if(side[it.id]) sub=`<br><small style="color:var(--muted)">${side[it.id].l}× links, ${side[it.id].r}× rechts</small>`;
+    rows+=`<tr class="${need?'':'zero'}"><td>${esc(it.name)}${sub}</td><td><small>${esc(it.art)}</small></td><td class="n"><b>${need}</b></td><td class="n"><input type="number" min="0" data-inv="${it.id}" value="${have||''}" placeholder="0"></td><td class="n" data-miss="${it.id}">${miss?`<span class="miss">${miss}</span>`:(need?'<span class="okc">✓</span>':'')}</td></tr>`;
+  }
+  h+=`<h2>Stückliste</h2><div class="card" style="padding:4px 6px"><table>
+    <thead><tr><th>Schiene</th><th>Art.-Nr.</th><th class="n">Brauche</th><th class="n">Habe</th><th class="n">Fehlt</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <div class="note">Trage unter „Habe“ ein, was du besitzt. Dann siehst du, was dir noch fehlt. Artikelnummern sind Händlerangaben, prüfe sie vor dem Kauf.</div></div>`;
+  el.innerHTML=h;
+  document.getElementById('printHead').textContent=(S.name||'Meine GO!!! Bahn');
+  // wire
+  const tW=document.getElementById('tW'), tH=document.getElementById('tH');
+  const upd=()=>{ const w=+tW.value, hh=+tH.value; if(w>=20&&hh>=20){ S.table={w,h:hh}; renderTable(); renderOverlay(); save(); updateFitOnly(); } };
+  tW.onchange=upd; tH.onchange=upd;
+  const bc=document.getElementById('bCenter'); if(bc) bc.onclick=centerOnTable;
+  const sl=document.getElementById('sRotL'); if(sl){ sl.onclick=()=>rotateSelected(-15); document.getElementById('sRotR').onclick=()=>rotateSelected(15); document.getElementById('sDel').onclick=()=>deletePiece(sel); }
+  el.querySelectorAll('[data-inv]').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.inv, v=Math.max(0,parseInt(inp.value)||0); S.inv[id]=v;
+    const need=cnt[id]||0, miss=Math.max(0,need-v);
+    el.querySelector(`[data-miss="${id}"]`).innerHTML = miss?`<span class="miss">${miss}</span>`:(need?'<span class="okc">✓</span>':'');
+    save();
+  }));
+}
+function updateFitOnly(){ renderSide(); }
+
+/* ---------- catalog ---------- */
+function iconSVG(t,m){
+  const o=localOutline(t,m); let a=[Infinity,Infinity,-Infinity,-Infinity];
+  for(const [x,y] of o){ a[0]=Math.min(a[0],x); a[1]=Math.min(a[1],y); a[2]=Math.max(a[2],x); a[3]=Math.max(a[3],y); }
+  const pad=14, w=a[2]-a[0]+2*pad, h=a[3]-a[1]+2*pad;
+  return `<svg viewBox="${fmt(a[0]-pad)} ${fmt(a[1]-pad)} ${fmt(w)} ${fmt(h)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${pieceInner(t,m)}</svg>`;
+}
+function renderCatalog(){
+  let h='';
+  for(const g of CATALOG){
+    h+=`<h2>${g.group}</h2>`;
+    for(const it of g.items){
+      const dims = it.kind==='straight' ? `${cm(it.len())} cm` : it.kind==='curve' ? `Radius ${cm(it.r())} cm · ${360/it.a} Stück = Kreis` : `versetzt um ${cm(P.loopOff)} cm`;
+      const btns = hasSides(it)
+        ? `<button data-add="${it.id}" data-m="-1" title="nach links">↶ links</button><button data-add="${it.id}" data-m="1" title="nach rechts">↷ rechts</button>`
+        : `<button data-add="${it.id}" data-m="1">＋ Anbauen</button>`;
+      h+=`<div class="item">${iconSVG(it.id,1)}<div class="nm"><b>${esc(it.name)}</b><small>${dims}<br>Art.-Nr. ${esc(it.art)}</small></div><div class="btns">${btns}</div></div>`;
+    }
+  }
+  h+=`<p class="note">Tipp: Maße stimmen nicht mit deinen Schienen überein? Oben auf <b>📏 Maße</b> klicken und anpassen.</p>`;
+  const c=document.getElementById('catalog'); c.innerHTML=h;
+  c.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addPiece(b.dataset.add,+b.dataset.m));
+}
+
+/* ---------- pointer ---------- */
+let drag=null;
+svg.addEventListener('pointerdown',e=>{
+  if(e.button!==0) return;
+  const portEl=e.target.closest('.port');
+  if(portEl){ if(portEl.dataset.pid){ S.active={pid:+portEl.dataset.pid,i:+portEl.dataset.i}; sel=null; render(); } return; }
+  const pe=e.target.closest('.piece'); const w=toWorld(e);
+  if(pe){
+    const id=+pe.dataset.id; sel=id; const ids=groupOf(id);
+    drag={mode:'piece',ids,sx:w[0],sy:w[1],cx:e.clientX,cy:e.clientY,orig:ids.map(i=>{const p=byId(i);return [p.x,p.y];}),snap:snapshot(),moved:false};
+    render();
+  } else {
+    drag={mode:'pan',cx:e.clientX,cy:e.clientY,tx:view.tx,ty:view.ty,moved:false};
+    svg.style.cursor='grabbing';
+  }
+  svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  if(Math.hypot(e.clientX-drag.cx,e.clientY-drag.cy)>3) drag.moved=true;
+  if(!drag.moved) return;
+  if(drag.mode==='pan'){ view.tx=drag.tx+e.clientX-drag.cx; view.ty=drag.ty+e.clientY-drag.cy; applyView(); }
+  else {
+    const w=toWorld(e), dx=w[0]-drag.sx, dy=w[1]-drag.sy;
+    drag.ids.forEach((id,k)=>{ const p=byId(id); p.x=drag.orig[k][0]+dx; p.y=drag.orig[k][1]+dy;
+      const g=lPieces.querySelector(`[data-id="${id}"]`); if(g) g.setAttribute('transform',`translate(${fmt(p.x)} ${fmt(p.y)}) rotate(${p.r.toFixed(4)})`); });
+    lOver.style.display='none';
+  }
+});
+function endDrag(){
+  if(!drag) return;
+  svg.style.cursor='';
+  if(drag.mode==='piece' && drag.moved){ trySnap(drag.ids); pushUndo(drag.snap); lOver.style.display=''; render(); }
+  else if(drag.mode==='pan' && !drag.moved){ sel=null; render(); }
+  drag=null;
+}
+svg.addEventListener('pointerup',endDrag);
+svg.addEventListener('pointercancel',endDrag);
+svg.addEventListener('wheel',e=>{
+  e.preventDefault(); const r=svg.getBoundingClientRect();
+  if(e.ctrlKey||Math.abs(e.deltaY)>=Math.abs(e.deltaX)) zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015)),e.clientX-r.left,e.clientY-r.top);
+  else { view.tx-=e.deltaX; applyView(); }
+},{passive:false});
+document.getElementById('zIn').onclick=()=>{const r=svg.getBoundingClientRect(); zoomAt(1.25,r.width/2,r.height/2);};
+document.getElementById('zOut').onclick=()=>{const r=svg.getBoundingClientRect(); zoomAt(0.8,r.width/2,r.height/2);};
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,select')||document.querySelector('dialog[open]')) return;
+  const mod=e.metaKey||e.ctrlKey, k=e.key.toLowerCase();
+  if(mod && k==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
+  if(mod && k==='y'){ e.preventDefault(); redo(); return; }
+  if(mod) return;
+  if(e.key==='Delete'||e.key==='Backspace'){ e.preventDefault(); if(sel!=null) deletePiece(sel); else if(S.active) deletePiece(S.active.pid); else if(S.pieces.length) deletePiece(S.pieces[S.pieces.length-1].id); }
+  else if(e.key==='Escape'){ sel=null; render(); }
+  else if(k==='g') addPiece('g1',1);
+  else if(k==='l') addPiece('k1',-1);
+  else if(k==='r') addPiece('k1',1);
+  else if(k==='q') rotateSelected(-15);
+  else if(k==='e') rotateSelected(15);
+});
+
+/* ---------- examples ---------- */
+function example(name){
+  pushUndo(); S.pieces=[]; S.nextId=1; S.active=null; sel=null;
+  const add=(t,m=1)=>addPiece(t,m,true);
+  if(name==='oval'){
+    add('start'); add('g1'); add('k90',1); add('k90',1); add('g1'); add('g1'); add('k90',1); add('k90',1);
+    S.name='Oval';
+  } else if(name==='spur'){
+    add('start'); add('g1'); add('xspur'); add('k90',1); add('k90',1); add('g1'); add('g1'); add('eng'); add('k90',1); add('k90',1);
+    S.name='Rundkurs mit Kreuzung & Engstelle';
+  } else if(name==='loop'){
+    add('start'); add('loop',1); for(let i=0;i<4;i++) add('sk2',1); add('eng'); add('g3'); add('loop',1); for(let i=0;i<4;i++) add('k2',1);
+    S.name='Looping-Rundkurs';
+  }
+  // move onto table
+  const bb=pieceBBox(); const dx=S.table.w*5-(bb[0]+bb[2])/2, dy=S.table.h*5-(bb[1]+bb[3])/2;
+  for(const p of S.pieces){ p.x+=dx; p.y+=dy; }
+  document.getElementById('trackName').value=S.name;
+  render(); fit();
+}
+
+/* ---------- save / load ---------- */
+const LS='go-bahnplaner-v1';
+function save(){ try{ localStorage.setItem(LS, JSON.stringify({S,P})); }catch(e){} }
+function load(){ try{ const o=JSON.parse(localStorage.getItem(LS)); if(o&&o.S){ S={...S,...o.S}; S.pieces=(S.pieces||[]).filter(p=>ITEM[p.t]); P={...DEFAULT_P,...(o.P||{})}; delete P.kreuz; } }catch(e){} }
+function download(){
+  const data={app:'carrera-go-bahnplaner',version:1,name:S.name,pieces:S.pieces,nextId:S.nextId,table:S.table,inv:S.inv,params:P};
+  const blob=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=((S.name||'bahn').replace(/[^\wäöüÄÖÜß\- ]+/g,'').trim()||'bahn')+'.json';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+document.getElementById('fileIn').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const o=JSON.parse(await f.text());
+    if(!Array.isArray(o.pieces)) throw 0;
+    pushUndo();
+    P={...DEFAULT_P,...(o.params||{})}; gcache={}; icache={}; ocache={};
+    S.pieces=o.pieces.filter(p=>ITEM[p.t]); S.nextId=o.nextId||(Math.max(0,...S.pieces.map(p=>p.id))+1);
+    S.table=o.table||S.table; S.inv=o.inv||{}; S.name=o.name||''; S.active=null; sel=null;
+    document.getElementById('trackName').value=S.name;
+    renderCatalog(); render(); fit();
+  }catch(err){ alert('Diese Datei konnte nicht gelesen werden.'); }
+  e.target.value='';
+});
+
+/* ---------- dialogs ---------- */
+const dlgP=document.getElementById('dlgParams');
+function openParams(vals){
+  document.getElementById('paramGrid').innerHTML=Object.keys(DEFAULT_P).map(k=>`<label for="p_${k}">${PARAM_LABELS[k]}</label><input type="number" id="p_${k}" step="0.5" min="1" value="${vals[k]}">`).join('');
+  if(!dlgP.open) dlgP.showModal();
+}
+document.getElementById('bParams').onclick=()=>openParams(P);
+document.getElementById('pReset').onclick=()=>openParams(DEFAULT_P);
+document.getElementById('pCancel').onclick=()=>dlgP.close();
+document.getElementById('pOk').onclick=()=>{
+  const np={}; for(const k of Object.keys(DEFAULT_P)){ const v=parseFloat(document.getElementById('p_'+k).value); np[k]=v>0?v:DEFAULT_P[k]; }
+  dlgP.close(); applyParams(np);
+};
+const dlgH=document.getElementById('dlgHelp');
+document.getElementById('bHelp').onclick=()=>dlgH.showModal();
+document.getElementById('hOk').onclick=()=>dlgH.close();
+
+/* ---------- header ---------- */
+document.getElementById('bNew').onclick=()=>{ if(S.pieces.length && !confirm('Neue Bahn beginnen? (Die aktuelle kannst du mit „Zurück“ wiederholen.)')) return; pushUndo(); S.pieces=[]; S.active=null; S.nextId=1; sel=null; S.name=''; document.getElementById('trackName').value=''; render(); fit(); };
+document.getElementById('bExample').onchange=e=>{ const v=e.target.value; e.target.value=''; if(v) example(v); };
+document.getElementById('bUndo').onclick=undo;
+document.getElementById('bRedo').onclick=redo;
+document.getElementById('bFit').onclick=fit;
+document.getElementById('bSave').onclick=download;
+document.getElementById('bOpen').onclick=()=>document.getElementById('fileIn').click();
+/* ---------- print: whole track fitted onto one A4 page ---------- */
+function buildPrint(){
+  const box=document.getElementById('printPlan'), bb=pieceBBox();
+  if(!bb){ box.innerHTML=''; return; }
+  // page 1 shows only the track, as large as the sheet allows
+  const bw=bb[2]-bb[0], bh=bb[3]-bb[1], pad=Math.max(bw,bh)*0.01;
+  const x=bb[0]-pad, y=bb[1]-pad, w=bw+2*pad, h=bh+2*pad;
+  const land = w>=h;
+  document.getElementById('pageStyle').textContent=`@page{size:A4 ${land?'landscape':'portrait'};margin:8mm}`;
+  // usable paper area in mm (A4 minus margins, small safety reserve)
+  const availW = (land?281:194)-2, availH = (land?194:281)-4;
+  const sc=Math.min(availW/w, availH/h);           // paper-mm per real-mm
+  let pcs='';
+  for(const p of S.pieces) pcs+=`<g transform="translate(${fmt(p.x)} ${fmt(p.y)}) rotate(${p.r.toFixed(4)})">${pieceInner(p.t,p.m)}</g>`;
+  box.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(x)} ${fmt(y)} ${fmt(w)} ${fmt(h)}" style="width:${(w*sc).toFixed(1)}mm;height:${(h*sc).toFixed(1)}mm">${pcs}</svg>`;
+}
+document.getElementById('bPrint').onclick=()=>{ buildPrint(); setTimeout(()=>window.print(),50); };
+document.getElementById('trackName').addEventListener('input',e=>{ S.name=e.target.value; document.getElementById('printHead').textContent=S.name||'Meine GO!!! Bahn'; save(); });
+window.addEventListener('beforeprint',buildPrint);
+window.addEventListener('resize',()=>renderOverlay());
+
+/* ---------- track generator ----------
+   Idea: every track is a closed loop of edges (straight sections) joined by 90° turns.
+   Right turns minus left turns = 4. Pieces are drawn from the inventory, then the
+   closing error in x and y is fixed by adding/removing straights on suitable edges.
+   Every candidate is built for real and checked (closed, no overlap, fits table). */
+const TURN_UNITS=[
+  {t:'k90',n:1,r:()=>P.r1}, {t:'k1',n:2,r:()=>P.r1}, {t:'sk1',n:2,r:()=>P.r1,sp:true},
+  {t:'k2',n:2,r:()=>P.r2}, {t:'sk2',n:2,r:()=>P.r2,sp:true}, {t:'k3',n:3,r:()=>P.r3}];
+const GEN_STRAIGHTS=['g1','g2','g3'];
+const GEN_SPECIALS=['loop','xspur','eng','schikane','spurw'];
+const DIRS=[[1,0],[0,1],[-1,0],[0,-1]];
+const rnd=n=>Math.floor(Math.random()*n);
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const itemLen=t=>ITEM[t].kind==='loop'?P.loopL:ITEM[t].len();
+
+function genInventory(){ const inv={}; for(const id in ITEM) inv[id]=S.inv[id]||0; if(!inv.start) inv.start=1; return inv; }
+function turnUnitsAvailable(inv,special){ let n=0; for(const u of TURN_UNITS) if(special||!u.sp) n+=Math.floor(inv[u.t]/u.n); return n; }
+
+// find counts of g1/g2/g3 whose total length equals target (±1.5 mm)
+function straightCombo(target, avail){
+  const L=GEN_STRAIGHTS.map(itemLen); let best=null;
+  for(let a=0;a<=avail[0];a++){ const ra=target-a*L[0]; if(ra<-2) break;
+    for(let b=0;b<=avail[1];b++){ const rb=ra-b*L[1]; if(rb<-2) break;
+      const c=Math.round(rb/L[2]);
+      if(c>=0 && c<=avail[2] && Math.abs(rb-c*L[2])<1.5){ const cnt=a+b+c; if(!best||cnt<best.cnt) best={cnt,k:[a,b,c]}; } } }
+  return best && best.k;
+}
+
+function genAttempt(opt){
+  const inv=genInventory();
+  const units=TURN_UNITS.filter(u=>opt.special||!u.sp);
+  const total=turnUnitsAvailable(inv,opt.special);
+  if(total<4) return null;
+  const k=rnd(Math.min(4,Math.floor((total-4)/2))+1);         // number of left turns
+  const turns=shuffle([...Array(4+k).fill(1),...Array(k).fill(-1)]);
+  const n=turns.length, tu=[];
+  for(const s of turns){
+    const av=units.filter(u=>inv[u.t]>=u.n); if(!av.length) return null;
+    let tot=0; av.forEach(u=>tot+=inv[u.t]/u.n);
+    let r=Math.random()*tot, ch=av[av.length-1];
+    for(const u of av){ r-=inv[u.t]/u.n; if(r<=0){ ch=u; break; } }
+    inv[ch.t]-=ch.n; tu.push(ch);
+  }
+  const edges=Array.from({length:n},()=>[]);
+  edges[0].push({t:'start',m:1}); inv.start--;
+  if(opt.special) for(const t of GEN_SPECIALS){
+    while(inv[t]>0 && Math.random()<0.7){ inv[t]--; edges[rnd(n)].push({t,m:t==='loop'&&Math.random()<.5?-1:1}); } }
+  const pool=[]; for(const t of GEN_STRAIGHTS) for(let i=0;i<inv[t];i++) pool.push(t);
+  shuffle(pool);
+  const use=Math.round(pool.length*opt.fill*(0.5+Math.random()*0.5));
+  for(let i=0;i<use;i++){ const t=pool.pop(); inv[t]--; edges[rnd(n)].push({t,m:1}); }
+  const head=[]; { let h=0; for(let i=0;i<n;i++){ head.push(h); h=(h+turns[i]+4)%4; } }
+  const err=()=>{ let x=0,y=0;
+    for(let i=0;i<n;i++){
+      const d=DIRS[head[i]], dn=DIRS[(head[i]+1)%4];
+      for(const s of edges[i]){ const L=itemLen(s.t); x+=d[0]*L; y+=d[1]*L;
+        if(s.t==='loop'){ const o=P.loopOff*s.m; x+=dn[0]*o; y+=dn[1]*o; } }
+      const R=tu[i].r(), d2=DIRS[(head[i]+turns[i]+4)%4];
+      x+=(d[0]+d2[0])*R; y+=(d[1]+d2[1])*R;
+    }
+    return [x,y]; };
+  // repair closing error per axis
+  for(const ax of [0,1]){
+    const e=err()[ax]; if(Math.abs(e)<1) continue;
+    const sg=Math.sign(e);
+    const addEdges=[], remEdges=[];
+    for(let i=0;i<n;i++){ const v=DIRS[head[i]][ax]; if(v===-sg) addEdges.push(i); else if(v===sg) remEdges.push(i); }
+    let done=false;
+    // option 1: add straights from the remaining inventory
+    const combo=straightCombo(Math.abs(e), GEN_STRAIGHTS.map(t=>inv[t]));
+    if(combo && addEdges.length){
+      combo.forEach((c,j)=>{ for(let q=0;q<c;q++){ inv[GEN_STRAIGHTS[j]]--; edges[addEdges[rnd(addEdges.length)]].push({t:GEN_STRAIGHTS[j],m:1}); } });
+      done=true;
+    } else if(remEdges.length){
+      // option 2: remove straights from edges that point the wrong way
+      const have=GEN_STRAIGHTS.map(t=>remEdges.reduce((s,i)=>s+edges[i].filter(p=>p.t===t).length,0));
+      const rc=straightCombo(Math.abs(e), have);
+      if(rc){ rc.forEach((c,j)=>{ let left=c;
+          for(const i of shuffle([...remEdges])){ while(left>0){ const idx=edges[i].findIndex(p=>p.t===GEN_STRAIGHTS[j]); if(idx<0) break; edges[i].splice(idx,1); inv[GEN_STRAIGHTS[j]]++; left--; } } });
+        done=true; }
+    }
+    if(!done) return null;
+  }
+  const [ex,ey]=err(); if(Math.abs(ex)>1.5||Math.abs(ey)>1.5) return null;
+  // sequence
+  const seq=[];
+  for(let i=0;i<n;i++){
+    const e=edges[i];
+    const body = i===0 ? [e[0],...shuffle(e.slice(1))] : shuffle(e);
+    seq.push(...body);
+    for(let q=0;q<tu[i].n;q++) seq.push({t:tu[i].t,m:turns[i]});
+  }
+  return seq;
+}
+function buildPieces(seq){
+  const ps=[]; let prev=null;
+  seq.forEach((s,i)=>{ const p={id:i+1,t:s.t,m:s.m||1,x:0,y:0,r:0}; if(prev) placeAt(p,0,wport(prev,1)); ps.push(p); prev=p; });
+  return ps;
+}
+function evaluateCandidate(ps,opt){
+  const first=ps[0], last=ps[ps.length-1], a=wport(last,1), b=wport(first,0);
+  if(Math.hypot(a.x-b.x,a.y-b.y)>2 || angDiff(a.d,b.d+180)>1) return null;
+  const keep=S.pieces; S.pieces=ps;
+  try{
+    const an=analyze(); if(an.open.length||an.over.size) return null;
+    let bb=pieceBBox(); const W=S.table.w*10, H=S.table.h*10;
+    let bw=bb[2]-bb[0], bh=bb[3]-bb[1];
+    if(opt.fit && !(bw<=W&&bh<=H)){
+      if(bh<=W&&bw<=H){ rotateGroup(ps.map(p=>p.id),90,0,0); bb=pieceBBox(); bw=bb[2]-bb[0]; bh=bb[3]-bb[1]; }
+      else return null;
+    }
+    const dx=W/2-(bb[0]+bb[2])/2, dy=H/2-(bb[1]+bb[3])/2;
+    for(const p of ps){ p.x+=dx; p.y+=dy; }
+    let len=0; for(const p of ps) len+=geom(p.t,p.m).len;
+    return {pieces:ps,bw,bh,len};
+  } finally { S.pieces=keep; }
+}
+
+let genResults=[], genBusy=false;
+function renderGenInv(){
+  const inv=genInventory(), parts=[];
+  for(const g of CATALOG) for(const it of g.items){ const v=S.inv[it.id]||0; if(v) parts.push(`${v}× ${esc(it.name)}`); }
+  const special=document.getElementById('genSpecial').checked;
+  const tu=turnUnitsAvailable(inv,special);
+  let h = parts.length ? `<b>Dein Bestand:</b> ${parts.join(', ')}` : `<b>Noch kein Bestand eingetragen.</b> Trag rechts in der Stückliste unter „Habe“ ein, welche Schienen du besitzt.`;
+  if(parts.length && tu<4) h+=`<div class="miss" style="margin-top:4px">Zu wenig Kurven: Für eine geschlossene Bahn brauchst du mindestens 4× Kurve 1/90° oder 8× Kurve 1/45° (bzw. 2/45°).</div>`;
+  if(S.pieces.length) h+=`<div style="margin-top:6px"><button id="genTake">Schienen der aktuellen Bahn als Bestand übernehmen</button></div>`;
+  document.getElementById('genInv').innerHTML=h;
+  document.getElementById('genTable').textContent=`${S.table.w} × ${S.table.h} cm`;
+  const tk=document.getElementById('genTake');
+  if(tk) tk.onclick=()=>{ const cnt={}; for(const p of S.pieces) cnt[p.t]=(cnt[p.t]||0)+1; for(const id in cnt) S.inv[id]=Math.max(S.inv[id]||0,cnt[id]); save(); renderSide(); renderGenInv(); };
+}
+function thumbSVG(c){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  const keep=S.pieces; S.pieces=c.pieces; const bb=pieceBBox(); S.pieces=keep;
+  [x0,y0,x1,y1]=bb; const pad=Math.max(x1-x0,y1-y0)*0.04;
+  const W=S.table.w*10, H=S.table.h*10;
+  const vx=Math.min(x0,0)-pad, vy=Math.min(y0,0)-pad, vw=Math.max(x1,W)-vx+pad, vh=Math.max(y1,H)-vy+pad;
+  let g=`<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="var(--tableline)" stroke-width="${vw/250}" stroke-dasharray="${vw/80} ${vw/120}"/>`;
+  for(const p of c.pieces) g+=`<g transform="translate(${fmt(p.x)} ${fmt(p.y)}) rotate(${p.r.toFixed(4)})">${pieceInner(p.t,p.m)}</g>`;
+  return `<svg viewBox="${fmt(vx)} ${fmt(vy)} ${fmt(vw)} ${fmt(vh)}" preserveAspectRatio="xMidYMid meet">${g}</svg>`;
+}
+function renderGenResults(){
+  document.getElementById('genRes').innerHTML=genResults.map((c,i)=>`<div class="genCard">${thumbSVG(c)}
+    <div class="st"><b>${c.pieces.length} Schienen</b> · ${(c.len/1000).toLocaleString('de-DE',{maximumFractionDigits:1})} m Strecke<br>${cm(c.bw)} × ${cm(c.bh)} cm</div>
+    <button class="primary" data-gen="${i}">Übernehmen</button></div>`).join('');
+  document.querySelectorAll('[data-gen]').forEach(b=>b.onclick=()=>{
+    const c=genResults[+b.dataset.gen];
+    pushUndo(); S.pieces=c.pieces.map(p=>({...p})); S.nextId=S.pieces.length+1; S.active=null; sel=null;
+    S.name='Generierte Bahn'; document.getElementById('trackName').value=S.name;
+    dlgGen.close(); render(); fit();
+  });
+}
+function runGenerator(){
+  if(genBusy) return;
+  const opt={special:document.getElementById('genSpecial').checked, fit:document.getElementById('genFit').checked, fill:+document.getElementById('genSize').value};
+  const msg=document.getElementById('genMsg');
+  if(turnUnitsAvailable(genInventory(),opt.special)<4){ msg.textContent='Zu wenig Kurven im Bestand.'; genResults=[]; renderGenResults(); return; }
+  genBusy=true; genResults=[]; renderGenResults(); msg.textContent='Suche Bahnen …';
+  const seen=new Set(), t0=performance.now(), WANT=6;
+  const step=()=>{
+    const tEnd=performance.now()+40;
+    while(performance.now()<tEnd && genResults.length<WANT){
+      const seq=genAttempt(opt); if(!seq) continue;
+      const sig=seq.map(s=>s.t+(s.m<0?'-':'')).join(',');
+      if(seen.has(sig)) continue; seen.add(sig);
+      const c=evaluateCandidate(buildPieces(seq),opt); if(c) genResults.push(c);
+    }
+    renderGenResults();
+    if(genResults.length<WANT && performance.now()-t0<4000){ msg.textContent=`Suche Bahnen … ${genResults.length} gefunden`; setTimeout(step,0); }
+    else {
+      genBusy=false;
+      genResults.sort((a,b)=>b.pieces.length-a.pieces.length); renderGenResults();
+      msg.textContent = genResults.length ? `${genResults.length} Vorschläge. Nochmal klicken für neue Ideen.` : 'Keine passende Bahn gefunden. Probier „kompakt“ oder schalte „Muss auf die Platte passen“ aus.';
+    }
+  };
+  setTimeout(step,10);
+}
+const dlgGen=document.getElementById('dlgGen');
+document.getElementById('bGen').onclick=()=>{ renderGenInv(); dlgGen.showModal(); };
+document.getElementById('genClose').onclick=()=>dlgGen.close();
+document.getElementById('genGo').onclick=runGenerator;
+document.getElementById('genSpecial').onchange=renderGenInv;
+
+/* ---------- start ---------- */
+load();
+document.getElementById('trackName').value=S.name||'';
+renderCatalog(); applyView(); render();
+requestAnimationFrame(fit);
+</script>
+</body>
+</html>
