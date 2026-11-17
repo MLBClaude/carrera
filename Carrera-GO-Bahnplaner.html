@@ -90,6 +90,7 @@ tr.zero td{opacity:.45}
 dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);max-width:560px;width:calc(100% - 32px)}
 dialog::backdrop{background:rgba(0,0,0,.35)}
 dialog h3{margin-top:0}
+#rsPrev svg{width:100%;height:100%}
 .grid2{display:grid;grid-template-columns:1fr 90px;gap:6px 10px;align-items:center}
 .grid2 input{width:90px}
 #dlgGen{max-width:960px}
@@ -148,6 +149,7 @@ kbd{background:var(--btn);border:1px solid var(--line);border-radius:4px;padding
   <button id="bPrint">🖨 Drucken / PDF</button>
   <div class="sep"></div>
   <button id="bGen" class="primary">🎲 Bahn-Generator</button>
+  <button id="bRS">🏁 In Rennstall speichern</button>
   <button id="bLaps" onclick="window.open('Carrera-GO-Rundenzaehler.html','_blank')">⏱ Rundenzähler</button>
   <button id="bParams">📏 Maße</button>
   <button id="bHelp">❓ Hilfe</button>
@@ -217,6 +219,18 @@ kbd{background:var(--btn);border:1px solid var(--line);border-radius:4px;padding
   <div class="row" style="margin-top:14px;justify-content:flex-end"><button id="hOk" class="primary">Alles klar</button></div>
 </dialog>
 
+<dialog id="dlgRS">
+  <h3>🏁 Strecke im Rennstall speichern</h3>
+  <p id="rsState" class="note" style="margin-top:0;font-size:13px"></p>
+  <div id="rsForm">
+    <div id="rsPrev" style="background:#0a0c10;border-radius:8px;padding:6px;height:180px;display:flex"></div>
+    <div class="row" style="margin-top:10px"><input id="rsName" placeholder="Name der Strecke" maxlength="40" style="flex:1;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--text)" aria-label="Name der Strecke"></div>
+    <label style="display:block;margin-top:8px"><input type="checkbox" id="rsCur" checked> Das ist die Strecke, die gerade aufgebaut ist</label>
+    <p class="note">Im Rundenzähler wird dann diese Strecke vorausgewählt, und Bestzeiten werden pro Strecke geführt.</p>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end"><span id="rsMsg" class="note" style="margin:0 auto 0 0"></span><button id="rsClose">Schließen</button><button id="rsSave" class="primary">Speichern</button></div>
+</dialog>
+
 <dialog id="dlgGen">
   <h3>🎲 Bahn-Generator</h3>
   <p class="note" style="margin-top:0">Der Generator baut aus deinen Schienen zufällige Bahnen, die geschlossen sind und sich nicht überschneiden. Grundlage ist die Spalte „Habe“ in der Stückliste.</p>
@@ -236,6 +250,7 @@ kbd{background:var(--btn);border:1px solid var(--line);border-radius:4px;padding
   <div class="row" style="justify-content:flex-end"><button id="genClose">Schließen</button></div>
 </dialog>
 
+<script src="rennstall.js"></script>
 <script>
 "use strict";
 const DEG = Math.PI/180, TOL = 2;
@@ -1020,11 +1035,70 @@ document.getElementById('genClose').onclick=()=>dlgGen.close();
 document.getElementById('genGo').onclick=runGenerator;
 document.getElementById('genSpecial').onchange=renderGenInv;
 
+/* ---------- Rennstall: Strecke speichern / laden ---------- */
+const dlgRS=document.getElementById('dlgRS');
+function trackThumb(){
+  const bb=pieceBBox(); if(!bb) return '';
+  const pad=Math.max(bb[2]-bb[0],bb[3]-bb[1])*0.05, x=bb[0]-pad, y=bb[1]-pad, w=bb[2]-bb[0]+2*pad, h=bb[3]-bb[1]+2*pad;
+  let d='', loops='', start='';
+  for(const p of S.pieces){ const g=geom(p.t,p.m);
+    for(const line of g.center){ d+='M'+line.map(([lx,ly])=>{ const [a,b]=tf(p,lx,ly); return fmt(a)+' '+fmt(b); }).join('L'); }
+    if(ITEM[p.t].kind==='loop'){ const [a,b]=tf(p,P.loopL/2,P.loopOff*p.m/2); loops+=`<circle cx="${fmt(a)}" cy="${fmt(b)}" r="${fmt(P.loopD/2)}" fill="none" stroke="#5b6472" stroke-width="${fmt(P.breite*0.6)}"/>`; }
+    if(p.t==='start'){ const [a,b]=tf(p,itemLen('start')/2,0); start=`<circle cx="${fmt(a)}" cy="${fmt(b)}" r="${fmt(P.breite*0.75)}" fill="#ffd400"/>`; }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${fmt(x)} ${fmt(y)} ${fmt(w)} ${fmt(h)}" preserveAspectRatio="xMidYMid meet">${loops}<path d="${d}" fill="none" stroke="#3a414d" stroke-width="${fmt(P.breite)}" stroke-linecap="butt" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#c9d1dc" stroke-width="${fmt(P.breite*0.08)}" stroke-dasharray="${fmt(P.breite*0.5)} ${fmt(P.breite*0.4)}"/>${start}</svg>`;
+}
+function openRS(){
+  const R=window.Rennstall, s=R&&R.session(), st=document.getElementById('rsState');
+  document.getElementById('rsForm').hidden=!s; document.getElementById('rsMsg').textContent='';
+  if(!s){ st.innerHTML='Dieses Gerät ist noch mit keinem Rennstall verbunden. Öffne zuerst den <a href="rennstall.html">Rennstall</a> und tritt bei oder gründe einen.'; }
+  else { st.textContent='Rennstall: '+s.teamName+(R.demo?' (Demo, nur dieses Gerät)':'');
+    document.getElementById('rsName').value=S.name||''; document.getElementById('rsPrev').innerHTML=trackThumb(); }
+  dlgRS.showModal();
+}
+async function saveRS(){
+  const R=window.Rennstall, msg=document.getElementById('rsMsg');
+  const name=document.getElementById('rsName').value.trim();
+  if(!S.pieces.length){ msg.textContent='Die Bahn ist noch leer.'; return; }
+  if(!name){ msg.textContent='Gib der Strecke einen Namen.'; return; }
+  const bb=pieceBBox(), lenM=S.pieces.reduce((a,p)=>a+geom(p.t,p.m).len,0)/1000;
+  const doc={name, created:Date.now(), thumb:trackThumb(), lengthM:Math.round(lenM*10)/10, pieceCount:S.pieces.length,
+    w:Math.round((bb[2]-bb[0])/10), h:Math.round((bb[3]-bb[1])/10),
+    plan:JSON.stringify({name,pieces:S.pieces,nextId:S.nextId,table:S.table,params:P})};
+  msg.textContent='Speichere …';
+  try{
+    const r=await R.add('tracks',doc);
+    if(document.getElementById('rsCur').checked) await R.updateTeam({currentTrackId:r.id}).catch(()=>{});
+    S.name=name; document.getElementById('trackName').value=name; save();
+    msg.textContent=r.synced?'Im Rennstall gespeichert ✓':'Gespeichert. Wird hochgeladen, sobald Internet da ist.';
+    setTimeout(()=>dlgRS.close(),1400);
+  }catch(e){ msg.textContent='Hat nicht geklappt: '+(e.message||e); }
+}
+async function loadFromRS(){
+  const m=location.hash.match(/rennstall=([A-Z0-9]+)/); if(!m) return;
+  const R=window.Rennstall; if(!R||!R.session()) return;
+  try{
+    const t=(await R.list('tracks')).find(x=>x.id===m[1]); if(!t||!t.plan) return;
+    const o=JSON.parse(t.plan);
+    pushUndo();
+    P={...DEFAULT_P,...(o.params||{})}; gcache={}; icache={}; ocache={};
+    S.pieces=o.pieces.filter(p=>ITEM[p.t]); S.nextId=o.nextId||(Math.max(0,...S.pieces.map(p=>p.id))+1);
+    S.table=o.table||S.table; S.name=t.name; S.active=null; sel=null;
+    document.getElementById('trackName').value=S.name;
+    renderCatalog(); render(); fit(); save();
+    history.replaceState(null,'',location.pathname);
+  }catch(e){}
+}
+document.getElementById('bRS').onclick=openRS;
+document.getElementById('rsClose').onclick=()=>dlgRS.close();
+document.getElementById('rsSave').onclick=saveRS;
+
 /* ---------- start ---------- */
 load();
 document.getElementById('trackName').value=S.name||'';
 renderCatalog(); applyView(); render();
 requestAnimationFrame(fit);
+loadFromRS();
 </script>
 </body>
 </html>

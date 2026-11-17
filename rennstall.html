@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>GO!!! Rennstall</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Saira:wght@400;600&display=swap">
+<style>
+/* Rennstall: dunkle Boxengassen-Optik wie der Rundenzähler, eine Spalte mit Reitern */
+:root{
+  --bg:#0e1116; --panel:#171b22; --panel2:#1f242d; --line:#2c333e;
+  --fg:#eef1f5; --mut:#8c96a5; --accent:#ffd400; --red:#ff4d4d; --green:#21e07a;
+  --disp:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Saira",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--body);
+  padding:env(safe-area-inset-top,0) max(14px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
+.wrap{max-width:860px;margin:0 auto}
+button,input,select{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 14px;cursor:pointer}
+button:hover{border-color:var(--mut)}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.go{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+button.small{padding:5px 10px;font-size:13px}
+button.danger{border-color:#6b2a2a;color:#ffb3b3}
+input,select{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0}
+a{color:var(--accent)}
+.num{font-variant-numeric:tabular-nums}
+.mut{color:var(--mut)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:center;gap:12px;padding:12px 0;flex-wrap:wrap}
+header h1{font:800 24px/1 var(--disp);text-transform:uppercase;margin:0;letter-spacing:.02em}
+header h1 span{color:var(--accent)}
+header nav{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+header nav a{color:var(--mut);text-decoration:none;font-size:14px;padding:6px 8px}
+header nav a:hover{color:var(--fg)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+h2{font:700 15px/1.2 var(--disp);letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--mut)}
+.demo{background:#3a2f00;border:1px solid #6b5800;color:#ffe680;border-radius:10px;padding:10px 12px;font-size:14px}
+.err{color:#ffb3b3;font-size:14px}
+.team{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
+.team b{font:800 clamp(30px,6vw,44px)/1 var(--disp);text-transform:uppercase}
+.team .me{margin-left:auto}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow-x:auto}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;border-radius:0;padding:10px 12px;color:var(--mut);font:700 16px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs .cnt{background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:12px;margin-left:4px}
+.list{display:flex;flex-direction:column;gap:10px}
+.race{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.race.new{border-color:var(--accent)}
+.race .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.race .top b{font:700 18px/1.2 var(--disp);text-transform:uppercase;letter-spacing:.03em}
+.race .top .when{margin-left:auto;font-size:13px}
+.pill{display:inline-block;border-radius:6px;padding:1px 7px;font:700 12px/1.5 var(--disp);letter-spacing:.06em;text-transform:uppercase;background:var(--panel2);color:var(--mut)}
+.pill.new{background:var(--accent);color:#111}
+.pill.rec{background:var(--green);color:#111}
+.pill.pen{background:var(--red);color:#fff}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+td.r,th.r{text-align:right}
+.tbl{overflow-x:auto}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:baseline}
+details summary{cursor:pointer;color:var(--mut);font-size:14px;margin-top:8px}
+.recline{margin-top:8px;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.drv b{font:800 26px/1 var(--disp);text-transform:uppercase}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0}
+.kpis div{background:var(--panel2);border-radius:8px;padding:8px}
+.kpis span{display:block;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.kpis strong{font:700 22px/1.1 var(--disp);font-variant-numeric:tabular-nums}
+.trk svg{width:100%;height:auto;aspect-ratio:4/3;background:#0a0c10;border-radius:8px;display:block}
+.trk .nm{font:700 20px/1.2 var(--disp);text-transform:uppercase;margin-top:8px}
+.empty{color:var(--mut);text-align:center;padding:28px 12px;border:1px dashed var(--line);border-radius:12px}
+.code{font:800 26px/1 var(--disp);letter-spacing:.08em;background:var(--panel2);border-radius:8px;padding:8px 12px;user-select:all;-webkit-user-select:all}
+.confirm{display:inline-flex;gap:6px;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>GO<span>!!!</span> Rennstall</h1>
+  <nav><a href="Carrera-GO-Rundenzaehler.html">⏱ Rundenzähler</a><a href="Carrera-GO-Bahnplaner.html">🛤 Bahnplaner</a></nav>
+</header>
+<div id="demoNote" class="demo" hidden>Demo-Modus: Die Online-Datenbank ist noch nicht eingerichtet. Alles bleibt nur auf diesem Gerät.</div>
+
+<!-- Noch kein Rennstall -->
+<section id="vStart" class="stack" hidden style="margin-top:14px">
+  <p class="mut" style="margin:0">Im Rennstall werden eure Rennen, Bestzeiten und Strecken gespeichert. Alle, die den Code kennen, sehen dasselbe, egal auf welchem Gerät.</p>
+  <div class="card stack">
+    <h2>Rennstall beitreten</h2>
+    <p class="mut" style="margin:0">Du hast einen Code bekommen? Gib ihn hier ein.</p>
+    <div class="row"><input id="joinCode" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" style="flex:1;letter-spacing:.08em" aria-label="Rennstall-Code"><button class="go" id="bJoin">Beitreten</button></div>
+    <div id="joinErr" class="err"></div>
+  </div>
+  <div class="card stack">
+    <h2>Neuen Rennstall gründen</h2>
+    <div class="row"><input id="newTeam" placeholder="z. B. Bonsack Racing" maxlength="40" style="flex:1" aria-label="Name des Rennstalls"></div>
+    <div class="row"><input id="newMe" placeholder="Dein Name, z. B. Michel" maxlength="16" style="flex:1" aria-label="Dein Fahrername"><button class="go" id="bCreate">Gründen</button></div>
+    <div id="createErr" class="err"></div>
+  </div>
+</section>
+
+<!-- Wer bist du? -->
+<section id="vWho" class="stack" hidden style="margin-top:14px">
+  <div class="card stack">
+    <h2>Wer bist du?</h2>
+    <div class="row" id="whoList"></div>
+    <div class="row"><input id="whoNew" placeholder="Neuer Fahrer" maxlength="16" style="flex:1" aria-label="Neuer Fahrername"><button id="bWhoNew">Hinzufügen</button></div>
+  </div>
+</section>
+
+<!-- Rennstall -->
+<section id="vMain" hidden>
+  <div class="team"><div><div class="mut" style="font-size:13px">Rennstall</div><b id="teamName"></b></div>
+    <div class="me row"><span class="mut">Ich bin</span><select id="meSel" aria-label="Ich bin"></select></div></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="verlauf" aria-selected="true">Verlauf<span class="cnt" id="newCnt" hidden></span></button>
+    <button role="tab" data-tab="besten">Bestenliste</button>
+    <button role="tab" data-tab="fahrer">Fahrer</button>
+    <button role="tab" data-tab="strecken">Strecken</button>
+    <button role="tab" data-tab="einladen">Einladen</button>
+  </div>
+  <div id="loadMsg" class="mut">Lade Daten …</div>
+  <div id="tVerlauf" class="list"></div>
+  <div id="tBesten" hidden></div>
+  <div id="tFahrer" hidden></div>
+  <div id="tStrecken" hidden></div>
+  <div id="tEinladen" hidden class="stack">
+    <div class="card stack">
+      <h2>Code für deinen Rennstall</h2>
+      <div class="row"><span class="code" id="codeBox"></span><button id="bCopy">Kopieren</button><button id="bShare" hidden>Teilen …</button></div>
+      <p class="mut" style="margin:0">Schick den Code oder diesen Link an alle, die mitfahren oder zuschauen sollen:</p>
+      <div class="row"><input id="joinLink" readonly style="flex:1" aria-label="Einladungslink"></div>
+      <p class="mut" style="margin:0">Wer den Code hat, kann alles sehen und eintragen. Gib ihn nur an Leute weiter, die dazugehören.</p>
+    </div>
+    <div class="card row" style="justify-content:space-between">
+      <span class="mut">Dieses Gerät vom Rennstall abmelden</span>
+      <button class="danger" id="bLeave">Abmelden</button>
+    </div>
+  </div>
+</section>
+</div>
+
+<script src="rennstall.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const R=window.Rennstall;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fs(sec,dec=2){ if(sec==null||!isFinite(sec)) return '–'; const m=Math.floor(sec/60), s=sec-m*60;
+  return ((m?m+':'+(s<10?'0':''):'')+s.toFixed(dec)).replace('.',','); }
+function when(ts){ const d=new Date(ts), now=new Date(), y=new Date(now); y.setDate(now.getDate()-1);
+  const hm=d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  if(d.toDateString()===now.toDateString()) return 'Heute, '+hm;
+  if(d.toDateString()===y.toDateString()) return 'Gestern, '+hm;
+  return d.toLocaleDateString('de-DE',{weekday:'short',day:'numeric',month:'numeric',year:'2-digit'})+', '+hm; }
+const COLORS=['#ff5a1f','#2f8cff','#21e07a','#ffd400','#c06bff','#ff4fa3','#00d1d1','#ff8c00'];
+
+$('demoNote').hidden=!R.demo;
+let data={team:null,drivers:[],tracks:[],races:[]}, tab='verlauf', lastSeen=0;
+const seenKey=()=>'go-rennstall-gesehen-'+R.session().teamId;
+
+/* ---------- Start: beitreten / gründen ---------- */
+(function readHash(){ const m=location.hash.match(/code=([A-Za-z0-9-]+)/); if(m){ $('joinCode').value=m[1]; } })();
+$('bJoin').onclick=async()=>{
+  $('joinErr').textContent=''; $('bJoin').disabled=true;
+  try{ await R.joinTeam($('joinCode').value); history.replaceState(null,'',location.pathname); await boot(); }
+  catch(e){ $('joinErr').textContent=e.code==='timeout'?'Keine Verbindung. Bist du online?':(e.message||String(e)); }
+  $('bJoin').disabled=false;
+};
+$('bCreate').onclick=async()=>{
+  const name=$('newTeam').value.trim(), me=$('newMe').value.trim();
+  if(!name||!me){ $('createErr').textContent='Gib einen Namen für den Rennstall und deinen Namen ein.'; return; }
+  $('createErr').textContent=''; $('bCreate').disabled=true;
+  try{ await R.createTeam(name); const r=await R.add('drivers',{name:me,color:COLORS[0],created:Date.now()}); R.setMe(r.id); tab='einladen'; await boot(); }
+  catch(e){ $('createErr').textContent=e.code==='timeout'?'Keine Verbindung. Bist du online?':('Hat nicht geklappt: '+(e.message||e)); }
+  $('bCreate').disabled=false;
+};
+
+/* ---------- Wer bist du? ---------- */
+function showWho(){
+  $('vWho').hidden=false;
+  $('whoList').innerHTML=data.drivers.length?data.drivers.map(d=>`<button data-me="${esc(d.id)}"><span class="dot" style="background:${esc(d.color)}"></span>${esc(d.name)}</button>`).join(''):'<span class="mut">Noch keine Fahrer. Leg dich unten an.</span>';
+  $('whoList').querySelectorAll('[data-me]').forEach(b=>b.onclick=()=>{ R.setMe(b.dataset.me); $('vWho').hidden=true; showMain(); });
+}
+$('bWhoNew').onclick=async()=>{ const n=$('whoNew').value.trim(); if(!n) return;
+  const r=await R.add('drivers',{name:n,color:COLORS[data.drivers.length%COLORS.length],created:Date.now()});
+  R.setMe(r.id); $('whoNew').value=''; await load(); $('vWho').hidden=true; showMain(); };
+
+/* ---------- Laden ---------- */
+async function load(){
+  const [team,drivers,tracks,races]=await Promise.all([R.getTeam(),R.list('drivers'),R.list('tracks'),R.list('races')]);
+  drivers.sort((a,b)=>a.created-b.created); tracks.sort((a,b)=>b.created-a.created); races.sort((a,b)=>b.at-a.at);
+  data={team,drivers,tracks,races};
+}
+async function boot(){
+  ['vStart','vWho','vMain'].forEach(v=>$(v).hidden=true);
+  const s=R.session();
+  if(!s){ $('vStart').hidden=false; return; }
+  $('vMain').hidden=false; $('teamName').textContent=s.teamName; $('loadMsg').hidden=false; $('loadMsg').textContent='Lade Daten …';
+  try{ await load(); }
+  catch(e){ $('loadMsg').textContent='Konnte den Rennstall nicht laden. Bist du online? ('+(e.message||e)+')'; return; }
+  $('loadMsg').hidden=true;
+  if(!data.team){ R.leave(); $('vMain').hidden=true; $('vStart').hidden=false; $('joinErr').textContent='Diesen Rennstall gibt es nicht mehr.'; return; }
+  try{ lastSeen=+localStorage.getItem(seenKey())||0; }catch(e){}
+  if(!s.me||!data.drivers.find(d=>d.id===s.me)){ $('vMain').hidden=true; showWho(); return; }
+  showMain();
+}
+function showMain(){
+  $('vMain').hidden=false; $('teamName').textContent=data.team.name;
+  const me=R.session().me;
+  $('meSel').innerHTML=data.drivers.map(d=>`<option value="${esc(d.id)}"${d.id===me?' selected':''}>${esc(d.name)}</option>`).join('')+'<option value="">+ Anderer Fahrer …</option>';
+  $('meSel').onchange=e=>{ if(!e.target.value){ $('vMain').hidden=true; showWho(); } else { R.setMe(e.target.value); render(); } };
+  const n=data.races.filter(r=>r.at>lastSeen).length;
+  $('newCnt').hidden=!n||!lastSeen; $('newCnt').textContent=n;
+  render();
+  // Was jetzt angezeigt wurde, gilt beim nächsten Besuch als gesehen
+  try{ localStorage.setItem(seenKey(),String(Date.now())); }catch(e){}
+}
+document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; render(); });
+
+/* ---------- Auswertung ---------- */
+const drvById=id=>data.drivers.find(d=>d.id===id);
+const trkById=id=>data.tracks.find(t=>t.id===id);
+function laneName(l){ const d=l.driverId&&drvById(l.driverId); return d?d.name:(l.name||'Gast'); }
+function laneColor(l){ const d=l.driverId&&drvById(l.driverId); return d?d.color:(l.color||'#888'); }
+// alle gültigen Runden: {driverId, t, at, trackId, raceId}
+function allLaps(){ const out=[];
+  for(const r of data.races) for(const l of r.lanes||[]){ if(!l.driverId) continue;
+    (l.laps||[]).forEach((t,k)=>{ if(l.jump&&k===0) return; out.push({driverId:l.driverId,t,at:r.at,trackId:r.trackId||'',raceId:r.id,lap:k+1}); }); }
+  return out; }
+function trackLabel(id){ const t=trkById(id); return t?t.name:(id?'Gelöschte Strecke':'Ohne Strecke'); }
+
+/* ---------- Ansichten ---------- */
+function render(){
+  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===tab));
+  ['Verlauf','Besten','Fahrer','Strecken','Einladen'].forEach(n=>$('t'+n).hidden=('t'+n)!==('t'+tab.charAt(0).toUpperCase()+tab.slice(1)));
+  ({verlauf:renderVerlauf,besten:renderBesten,fahrer:renderFahrer,strecken:renderStrecken,einladen:renderEinladen})[tab]();
+}
+function renderVerlauf(){
+  if(!data.races.length){ $('tVerlauf').innerHTML='<div class="empty">Noch keine Rennen gespeichert.<br>Fahr ein Rennen mit dem <a href="Carrera-GO-Rundenzaehler.html">Rundenzähler</a>. Danach steht es hier.</div>'; return; }
+  $('tVerlauf').innerHTML=data.races.map(r=>{
+    const lanes=(r.lanes||[]).slice().sort((a,b)=>(a.place||9)-(b.place||9));
+    const isNew=lastSeen&&r.at>lastSeen;
+    const title=r.kind==='training'?'Training':(r.mode==='time'?`Rennen · ${String(r.target).replace('.',',')} Min`:`Rennen · ${r.target} Runden`);
+    const rows=lanes.map(l=>`<tr><td>${r.kind==='training'?'':l.place+'.'}</td><td><span class="dot" style="background:${esc(laneColor(l))}"></span>${esc(laneName(l))}${l.jump?' <span class="pill pen">Frühstart +'+fs(l.penalty,0)+' s</span>':''}</td>
+      <td class="r">${(l.laps||[]).length} R</td><td class="r">${l.total!=null?fs(l.total):'–'}</td><td class="r"><b>${fs(l.best)}</b></td></tr>`).join('');
+    const recs=(r.records||[]).map(x=>`<div class="recline"><span class="pill rec">Bestzeit</span> ${esc(drvById(x.driverId)?.name||x.name)}: <b class="num">${fs(x.t)} s</b> in Runde ${x.lap}${x.prev!=null?` <span class="mut">(vorher ${fs(x.prev)} s)</span>`:''}</div>`).join('');
+    const maxL=Math.max(0,...lanes.map(l=>(l.laps||[]).length));
+    let lt=''; for(let k=0;k<maxL;k++) lt+=`<tr><td>${k+1}</td>${lanes.map(l=>{const x=(l.laps||[])[k]; return `<td class="r">${x==null?'–':(x===l.best?'<b>'+fs(x)+'</b>':fs(x))+(l.jump&&k===0?'*':'')}</td>`;}).join('')}</tr>`;
+    return `<article class="race${isNew?' new':''}">
+      <div class="top">${isNew?'<span class="pill new">Neu</span>':''}<b>${esc(title)}</b><span class="pill">${esc(r.trackName||trackLabel(r.trackId))}</span><span class="when mut">${when(r.at)}</span></div>
+      <div class="tbl"><table><tr><th></th><th>Fahrer</th><th class="r">Runden</th><th class="r">Gesamt</th><th class="r">Beste</th></tr>${rows}</table></div>
+      ${recs}
+      ${maxL?`<details><summary>Alle Rundenzeiten</summary><div class="tbl"><table><tr><th>Runde</th>${lanes.map(l=>`<th class="r">${esc(laneName(l))}</th>`).join('')}</tr>${lt}</table></div>${lanes.some(l=>l.jump)?'<p class="mut" style="font-size:13px">* nach Frühstart ab Grün gemessen, zählt nicht als Bestzeit</p>':''}</details>`:''}
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><span class="confirm" data-delwrap="${esc(r.id)}"><button class="small danger" data-del="${esc(r.id)}">Löschen</button></span></div>
+    </article>`; }).join('');
+  $('tVerlauf').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>askDelete(b,'races',b.dataset.del,'Rennen'));
+}
+function askDelete(btn,coll,id,what){
+  const wrap=btn.parentElement;
+  wrap.innerHTML=`<span class="mut" style="font-size:13px">${what} wirklich löschen?</span><button class="small danger" data-yes>Ja, löschen</button><button class="small" data-no>Nein</button>`;
+  wrap.querySelector('[data-no]').onclick=()=>render();
+  wrap.querySelector('[data-yes]').onclick=async()=>{ try{ await R.remove(coll,id); data[coll]=data[coll].filter(x=>x.id!==id); }catch(e){} render(); };
+}
+let bestTrack=null;
+function renderBesten(){
+  const laps=allLaps(); const ids=[...new Set(laps.map(l=>l.trackId))];
+  if(!laps.length){ $('tBesten').innerHTML='<div class="empty">Noch keine Rundenzeiten.</div>'; return; }
+  if(bestTrack==null||!ids.includes(bestTrack)) bestTrack=(data.team.currentTrackId&&ids.includes(data.team.currentTrackId))?data.team.currentTrackId:ids[0];
+  const L=laps.filter(l=>l.trackId===bestTrack);
+  const per={}; for(const l of L) if(!per[l.driverId]||l.t<per[l.driverId].t) per[l.driverId]=l;
+  const pers=Object.values(per).sort((a,b)=>a.t-b.t);
+  const top=L.slice().sort((a,b)=>a.t-b.t).slice(0,10);
+  const me=R.session().me;
+  const dn=id=>{ const d=drvById(id); return `<span class="dot" style="background:${esc(d?.color||'#888')}"></span>${esc(d?.name||'Unbekannt')}${id===me?' <span class="mut">(du)</span>':''}`; };
+  $('tBesten').innerHTML=`<div class="stack">
+    <div class="row"><span class="mut">Strecke</span><select id="bestSel">${ids.map(id=>`<option value="${esc(id)}"${id===bestTrack?' selected':''}>${esc(trackLabel(id))}</option>`).join('')}</select></div>
+    <div class="card"><h2>Bestzeit pro Fahrer</h2><div class="tbl"><table><tr><th>#</th><th>Fahrer</th><th class="r">Beste Runde</th><th class="r">Gefahren</th></tr>
+      ${pers.map((l,k)=>`<tr><td>${k+1}.</td><td>${dn(l.driverId)}</td><td class="r"><b>${fs(l.t)} s</b></td><td class="r mut">${when(l.at)}</td></tr>`).join('')}</table></div></div>
+    <div class="card"><h2>Die 10 schnellsten Runden</h2><div class="tbl"><table><tr><th>#</th><th>Fahrer</th><th class="r">Zeit</th><th class="r">Gefahren</th></tr>
+      ${top.map((l,k)=>`<tr><td>${k+1}.</td><td>${dn(l.driverId)}</td><td class="r">${fs(l.t)} s</td><td class="r mut">${when(l.at)}</td></tr>`).join('')}</table></div></div></div>`;
+  $('bestSel').onchange=e=>{ bestTrack=e.target.value; renderBesten(); };
+}
+function renderFahrer(){
+  const laps=allLaps();
+  $('tFahrer').innerHTML=`<div class="grid">${data.drivers.map(d=>{
+    const mine=data.races.filter(r=>(r.lanes||[]).some(l=>l.driverId===d.id));
+    const rennen=mine.filter(r=>r.kind!=='training'), siege=rennen.filter(r=>r.winnerId===d.id).length;
+    const nLaps=mine.reduce((s,r)=>s+(r.lanes.find(l=>l.driverId===d.id).laps||[]).length,0);
+    const bestBy={}; for(const l of laps) if(l.driverId===d.id&&(!bestBy[l.trackId]||l.t<bestBy[l.trackId])) bestBy[l.trackId]=l.t;
+    const last=mine[0];
+    return `<div class="card drv"><div class="row"><span class="dot" style="background:${esc(d.color)};width:14px;height:14px"></span><b>${esc(d.name)}</b></div>
+      <div class="kpis"><div><span>Rennen</span><strong>${rennen.length}</strong></div><div><span>Siege</span><strong>${siege}</strong></div><div><span>Runden</span><strong>${nLaps}</strong></div></div>
+      ${Object.keys(bestBy).length?`<table>${Object.entries(bestBy).map(([t,v])=>`<tr><td>${esc(trackLabel(t))}</td><td class="r"><b>${fs(v)} s</b></td></tr>`).join('')}</table>`:'<p class="mut" style="margin:0">Noch keine Runden gefahren.</p>'}
+      ${last?`<p class="mut" style="font-size:13px;margin:8px 0 0">Zuletzt gefahren: ${when(last.at)}</p>`:''}
+    </div>`; }).join('')}</div>
+    <div class="card row" style="margin-top:10px"><input id="addDrv" placeholder="Neuer Fahrer" maxlength="16" style="flex:1" aria-label="Neuer Fahrer"><button id="bAddDrv">Hinzufügen</button></div>`;
+  $('bAddDrv').onclick=async()=>{ const n=$('addDrv').value.trim(); if(!n) return;
+    const color=COLORS[data.drivers.length%COLORS.length], r=await R.add('drivers',{name:n,color,created:Date.now()});
+    data.drivers.push({id:r.id,name:n,color,created:Date.now()}); renderFahrer(); };
+}
+function renderStrecken(){
+  if(!data.tracks.length){ $('tStrecken').innerHTML='<div class="empty">Noch keine Strecken gespeichert.<br>Bau deine Bahn im <a href="Carrera-GO-Bahnplaner.html">Bahnplaner</a> und klick dort auf „🏁 In Rennstall speichern“.</div>'; return; }
+  const cur=data.team.currentTrackId;
+  $('tStrecken').innerHTML=`<div class="grid">${data.tracks.map(t=>{
+    const n=data.races.filter(r=>r.trackId===t.id).length;
+    return `<div class="card trk">${t.thumb||''}
+      <div class="row" style="margin-top:8px">${t.id===cur?'<span class="pill new">Aktuell aufgebaut</span>':''}</div>
+      <div class="nm">${esc(t.name)}</div>
+      <div class="mut num" style="font-size:14px">${t.lengthM!=null?String(t.lengthM.toFixed(1)).replace('.',',')+' m · ':''}${t.pieceCount||0} Schienen${t.w?` · ${t.w} × ${t.h} cm`:''} · ${n} Rennen</div>
+      <div class="row" style="margin-top:10px">
+        ${t.id!==cur?`<button class="small" data-cur="${esc(t.id)}">Als aktuell festlegen</button>`:''}
+        <a class="small" href="Carrera-GO-Bahnplaner.html#rennstall=${esc(t.id)}" style="font-size:13px">Im Bahnplaner öffnen</a>
+        <span class="confirm" style="margin-left:auto"><button class="small danger" data-del="${esc(t.id)}">Löschen</button></span>
+      </div></div>`; }).join('')}</div>`;
+  $('tStrecken').querySelectorAll('[data-cur]').forEach(b=>b.onclick=async()=>{ await R.updateTeam({currentTrackId:b.dataset.cur}); data.team.currentTrackId=b.dataset.cur; renderStrecken(); });
+  $('tStrecken').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>askDelete(b,'tracks',b.dataset.del,'Strecke'));
+}
+function renderEinladen(){
+  const s=R.session(), code=R.formatCode(s.teamId);
+  $('codeBox').textContent=code;
+  const link=location.origin+location.pathname+'#code='+code; $('joinLink').value=link;
+  $('bCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(link); $('bCopy').textContent='Kopiert ✓'; }catch(e){ $('joinLink').select(); } setTimeout(()=>$('bCopy').textContent='Kopieren',2000); };
+  $('bShare').hidden=!navigator.share;
+  $('bShare').onclick=()=>navigator.share({title:'GO!!! Rennstall '+s.teamName,text:'Komm in unseren Carrera-Rennstall! Code: '+code,url:link}).catch(()=>{});
+  $('bLeave').onclick=()=>{ const b=$('bLeave'); if(b.dataset.sure){ R.leave(); location.reload(); } else { b.dataset.sure='1'; b.textContent='Wirklich abmelden?'; } };
+}
+
+boot();
+</script>
+</body>
+</html>

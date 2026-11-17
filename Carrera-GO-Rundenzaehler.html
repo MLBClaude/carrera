@@ -159,11 +159,15 @@ header h1 span{color:var(--accent)}
 
   <div class="stack">
     <div class="card stack">
-      <h2>Fahrer</h2>
+      <h2>Fahrer &amp; Strecke</h2>
+      <div class="lbl" id="teamState"></div>
+      <div class="row" id="teamRow" hidden><span class="lbl">Strecke</span><select id="trackSel" style="flex:1;min-width:0" aria-label="Strecke"></select><a href="rennstall.html" class="lbl" style="color:var(--accent)">Rennstall ansehen</a></div>
+      <p class="hint" id="teamOff">Kein Rennstall verbunden. Rennen werden gezählt, aber nicht gespeichert. <a href="rennstall.html" style="color:var(--accent)">Rennstall verbinden</a></p>
       <div class="lanes2">
-        <div class="card stack" style="gap:6px"><span class="lbl">Spur 1</span><div class="row"><input id="n0" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 1"><input type="color" id="c0" aria-label="Farbe Spur 1"></div></div>
-        <div class="card stack" style="gap:6px"><span class="lbl">Spur 2</span><div class="row"><input id="n1" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 2"><input type="color" id="c1" aria-label="Farbe Spur 2"></div></div>
+        <div class="card stack" style="gap:6px"><span class="lbl">Spur 1</span><select id="w0" aria-label="Fahrer Spur 1"></select><div class="row"><input id="n0" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 1"><input type="color" id="c0" aria-label="Autofarbe Spur 1"></div></div>
+        <div class="card stack" style="gap:6px"><span class="lbl">Spur 2</span><select id="w1" aria-label="Fahrer Spur 2"></select><div class="row"><input id="n1" maxlength="16" style="flex:1;min-width:0" aria-label="Name Spur 2"><input type="color" id="c1" aria-label="Autofarbe Spur 2"></div></div>
       </div>
+      <p class="hint">Fährt nur einer, stell die andere Spur auf „– niemand –“. Dann ist es ein Training.</p>
     </div>
     <div class="card stack">
       <h2>Rennen</h2>
@@ -209,14 +213,17 @@ header h1 span{color:var(--accent)}
 
 <canvas id="proc" hidden></canvas>
 
+<script src="rennstall.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 const KEY='go-rundenzaehler-v1', RKEY='go-rundenzaehler-rekorde';
 const DEF={names:['Spieler 1','Spieler 2'],colors:['#ff5a1f','#2f8cff'],mode:'laps',laps:10,mins:3,
-  sens:40,lock:1.0,speech:true,sound:true,penalty:1.0,boxes:[null,null],camId:''};
+  sens:40,lock:1.0,speech:true,sound:true,penalty:1.0,boxes:[null,null],camId:'',who:['gast','gast'],guest:null,trackId:''};
 let cfg=Object.assign({},DEF);
 try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s) cfg=Object.assign({},DEF,s); }catch(e){}
+if(!cfg.guest) cfg.guest=cfg.names.slice();
+cfg.who=cfg.who.slice(); cfg.names=cfg.names.slice(); cfg.colors=cfg.colors.slice();
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){} }
 let records=[]; try{ records=JSON.parse(localStorage.getItem(RKEY)||'[]'); }catch(e){}
 function saveRec(){ try{localStorage.setItem(RKEY,JSON.stringify(records));}catch(e){} }
@@ -369,19 +376,24 @@ function loop(){
 
 /* ---------- Rennen ---------- */
 let race=null;
+const ACT=()=>[0,1].filter(i=>cfg.who[i]!=='none');      // Spuren, auf denen jemand fährt
 function newRace(){
-  race={phase:'ready',goAt:0,endAt:0,best:null,lanes:[0,1].map(()=>({started:false,jump:false,last:0,laps:[],penalty:0,finished:false,finishAt:0,best:null}))};
+  race={phase:'ready',goAt:0,endAt:0,best:null,act:ACT(),savedId:null,
+    lanes:[0,1].map(i=>({started:false,jump:false,last:0,laps:[],penalty:0,finished:false,finishAt:0,best:null,pb:teamPB(i)}))};
   renderBoard(); updateHead();
 }
 function target(){ return cfg.mode==='laps'?cfg.laps:null; }
 function updateHead(){
-  $('raceInfo').textContent = cfg.mode==='laps' ? `${cfg.laps} Runden` : `${String(cfg.mins).replace(".",",")} Minuten`;
+  const solo=race&&race.act.length===1;
+  $('raceInfo').textContent = (solo?'Training · ':'')+(cfg.mode==='laps' ? `${cfg.laps} Runden` : `${String(cfg.mins).replace(".",",")} Minuten`);
   $('bStart').hidden = !(race&&(race.phase==='ready'||race.phase==='done'));
   $('bStart').textContent = race&&race.phase==='done'?'Neues Rennen':'Start';
   $('bStop').hidden = !(race&&race.phase==='run');
 }
 function renderBoard(){
-  $('board').innerHTML=[0,1].map(i=>`
+  const act=race?race.act:ACT();
+  $('board').style.gridTemplateColumns=act.length===1?'1fr':'';
+  $('board').innerHTML=act.map(i=>`
   <section class="lane" id="lane${i}" style="--c:${esc(cfg.colors[i])}" tabindex="0" aria-label="Spur ${i+1}, tippen für Runde">
     <div class="who"><span class="pos" id="pos${i}">${i+1}</span><span>${esc(cfg.names[i])}</span><span id="flag${i}"></span></div>
     <div class="laps" id="lp${i}">0</div>
@@ -389,19 +401,19 @@ function renderBoard(){
     <div class="stats">
       <div><span>Letzte</span><b id="last${i}">–</b></div>
       <div><span>Beste</span><b id="best${i}">–</b></div>
-      <div><span>Abstand</span><b id="gap${i}">–</b></div>
+      <div><span id="gapL${i}">${act.length===1?'Bestzeit':'Abstand'}</span><b id="gap${i}">–</b></div>
     </div>
     <div class="lapList" id="list${i}"></div>
     <div class="foot"><button data-undo="${i}">Runde abziehen</button><button data-add="${i}">+1 Runde</button></div>
   </section>`).join('');
-  [0,1].forEach(i=>{ $('lane'+i).addEventListener('click',e=>{ const b=e.target.closest('button');
+  act.forEach(i=>{ $('lane'+i).addEventListener('click',e=>{ const b=e.target.closest('button');
     if(b&&b.dataset.undo!=null){ undoLap(+b.dataset.undo); return; }
     onCross(i,performance.now(),'hand'); }); });
   updateBoard(performance.now());
 }
 function onCross(i,t,src){
   if(src==='cam') flash(i);
-  if(!race||$('race').hidden&&src!=='hand') return;
+  if(!race||!race.act.includes(i)||$('race').hidden&&src!=='hand') return;
   const L=race.lanes[i];
   if(race.phase==='lights'){
     if(!L.jump){ L.jump=true; L.started=true; L.penalty+=cfg.penalty; say(`Frühstart ${cfg.names[i]}! Eine Sekunde Strafe.`); beep(200,0.5); updateBoard(t); }
@@ -418,20 +430,22 @@ function onCross(i,t,src){
   const counts=!(L.jump&&L.laps.length===1);
   if(counts){
   if(L.best==null||lap<L.best) L.best=lap;
-  if(race.best==null||lap<race.best.t){ const first=race.best==null; race.best={t:lap,i};
+  if(race.act.length>1&&(race.best==null||lap<race.best.t)){ const first=race.best==null; race.best={t:lap,i};
     if(!first&&L.laps.length>1) msg=`Schnellste Runde ${cfg.names[i]}, ${sayNum(lap)}.`; }
+  if(L.pb!=null&&lap<=L.pb-0.01&&!L.pbSaid){ L.pbSaid=true; msg=`Neue Bestzeit für ${cfg.names[i]}! ${sayNum(lap)}.`; }
+  else if(L.pbSaid&&lap<=L.best&&L.pb!=null&&lap<=L.pb-0.01){ msg=`Noch schneller! ${sayNum(lap)}.`; }
   if(records.length<10||lap<records[records.length-1].t){
     const wasTop=!records.length||lap<records[0].t;
     records.push({t:lap,name:cfg.names[i],d:new Date().toLocaleDateString('de-DE')}); records.sort((a,b)=>a.t-b.t); records=records.slice(0,10); saveRec(); renderRecords();
-    if(wasTop&&records.length>1) msg=`Neuer Rekord! ${cfg.names[i]}, ${sayNum(lap)}.`;
+    if(wasTop&&records.length>1&&!msg) msg=`Neuer Rekord! ${cfg.names[i]}, ${sayNum(lap)}.`;
   }
   }
   const tg=target();
   if(tg){
     const left=tg-L.laps.length;
-    if(left<=0){ L.finished=true; L.finishAt=t; const done=race.lanes.filter(x=>x.finished).length;
+    if(left<=0){ L.finished=true; L.finishAt=t; const done=race.act.filter(k=>race.lanes[k].finished).length;
       say(done===1?`${cfg.names[i]} ist im Ziel!`:`${cfg.names[i]} ist auch im Ziel.`, true);
-      if(race.lanes.every(x=>x.finished)) setTimeout(()=>finishRace(),900);
+      if(race.act.every(k=>race.lanes[k].finished)) setTimeout(()=>finishRace(),900);
       updateBoard(t); return; }
     if(left===1) msg=`Letzte Runde ${cfg.names[i]}! `+msg;
     else if(left===3||left===5&&tg>=10) msg=`Noch ${left} Runden ${cfg.names[i]}. `+msg;
@@ -449,26 +463,26 @@ function undoLap(i){
 function flash(i){ const el=$('lane'+i); if(!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 function standings(){
   // Reihenfolge: mehr Runden vorne; bei gleich vielen Runden zählt, wer seine letzte Runde früher abgeschlossen hat (+Strafe)
-  return [0,1].map(i=>{ const L=race.lanes[i]; const n=L.laps.length;
+  return race.act.map(i=>{ const L=race.lanes[i]; const n=L.laps.length;
     const at = L.finished ? L.finishAt : (n? L.last : Infinity);
     return {i,n,score:(at===Infinity?Infinity:(at-race.goAt)/1000+L.penalty)}; })
     .sort((a,b)=> b.n-a.n || a.score-b.score);
 }
 function updateBoard(t){
   if(!race) return;
-  const tg=target(), st=standings();
-  st.forEach((s,k)=>{ $('pos'+s.i).textContent=k+1; });
-  for(let i=0;i<2;i++){
+  const tg=target(), st=standings(), solo=race.act.length===1;
+  st.forEach((s,k)=>{ $('pos'+s.i).textContent=solo?(s.i+1):(k+1); });
+  for(const i of race.act){
     const L=race.lanes[i];
     $('lp'+i).innerHTML=L.laps.length+(tg?`<small>/${tg}</small>`:'');
     $('last'+i).textContent=fs(L.laps[L.laps.length-1]);
     $('best'+i).textContent=fs(L.best);
     $('flag'+i).innerHTML=(L.jump?`<span class="badge">Frühstart +${fs(cfg.penalty,0)} s</span>`:'')+(L.finished?' <span class="badge ok">Im Ziel</span>':'');
     $('list'+i).textContent=L.laps.map((x,k)=>`R${k+1} ${fs(x)}${L.jump&&k===0?'*':''}`).reverse().join('  ·  ')+(L.jump&&L.laps.length?'   (* ab Grün, zählt nicht als Bestzeit)':'');
-    // Abstand zum Führenden
-    const me=st.find(s=>s.i===i), lead=st[0];
     let g='–';
-    if(me!==lead&&race.phase!=='ready'){ if(me.n<lead.n) g=`−${lead.n-me.n} R`; else if(isFinite(me.score)&&isFinite(lead.score)) g='+'+fs(me.score-lead.score); }
+    if(solo){ g=L.pb!=null?fs(Math.min(L.pb,L.best??Infinity)):'–'; }
+    else { const me=st.find(s=>s.i===i), lead=st[0];
+      if(me!==lead&&race.phase!=='ready'){ if(me.n<lead.n) g=`−${lead.n-me.n} R`; else if(isFinite(me.score)&&isFinite(lead.score)) g='+'+fs(me.score-lead.score); } }
     $('gap'+i).textContent=g;
   }
 }
@@ -480,15 +494,16 @@ function tickRace(now){
       if(left<=0) { finishRace(); return; }
       if(!race.warned&&left<=30&&cfg.mins*60>45){ race.warned=true; say('Noch 30 Sekunden!'); }
     } else $('raceClock').textContent=fs(el,1);
-    for(let i=0;i<2;i++){ const L=race.lanes[i];
+    for(const i of race.act){ const L=race.lanes[i];
       $('cur'+i).textContent = L.finished?'Ziel':(L.started? fs((now-L.last)/1000,1) : 'warten auf Start'); }
-  } else if(race.phase==='ready'){ $('raceClock').textContent=cfg.mode==='time'?fs(cfg.mins*60,1):fs(0,1); for(let i=0;i<2;i++) $('cur'+i).textContent='bereit'; }
+  } else if(race.phase==='ready'){ $('raceClock').textContent=cfg.mode==='time'?fs(cfg.mins*60,1):fs(0,1); for(const i of race.act) $('cur'+i).textContent='bereit'; }
 }
 
 /* Ampel */
 let lightTimers=[];
 function startLights(){
   unlockAudio();
+  if(!ACT().length){ show('setup'); return; }
   if(!race||race.phase==='done') newRace();
   race.phase='lights'; updateHead();
   const bulbs=[...document.querySelectorAll('#lights .bulb')]; bulbs.forEach(b=>b.className='bulb');
@@ -500,34 +515,114 @@ function startLights(){
   lightTimers.push(setTimeout(()=>{
     bulbs.forEach(b=>{ b.classList.remove('on'); b.classList.add('green'); });
     beep(1046,0.5,0.3); $('lightsTxt').textContent='LOS!'; $('bAbort').hidden=true;
-    const t=performance.now(); race.phase='run'; race.goAt=t;
+    const t=performance.now(); race.phase='run'; race.goAt=t; race.wallStart=Date.now();
     race.lanes.forEach(L=>{ if(L.jump) L.last=t; });
     say('Los!',true); updateHead(); updateBoard(t);
     lightTimers.push(setTimeout(()=>{$('lights').hidden=true;},900));
   },hold));
 }
 function abortLights(){ lightTimers.forEach(clearTimeout); lightTimers=[]; $('lights').hidden=true; newRace(); }
+function laneTotal(s){ const L=race.lanes[s.i];
+  if(L.finished) return (L.finishAt-race.goAt)/1000+L.penalty;
+  return cfg.mode==='time'&&isFinite(s.score)?s.score:null; }
 function finishRace(){
   if(!race||race.phase==='done') return;
   race.phase='done'; race.endAt=performance.now(); updateHead(); updateBoard(race.endAt);
-  const st=standings(), tg=target();
-  const rows=st.map((s,k)=>{ const L=race.lanes[s.i];
-    const tot = L.finished ? fs((L.finishAt-race.goAt)/1000+L.penalty) : (cfg.mode==='time'&&isFinite(s.score)? fs(s.score) : 'nicht im Ziel');
-    return `<tr><td><b>${k+1}.</b></td><td><span class="dot" style="background:${esc(cfg.colors[s.i])}"></span>${esc(cfg.names[s.i])}</td><td class="num">${s.n}</td><td class="num">${tot}</td><td class="num">${fs(L.best)}</td><td>${L.penalty?'+'+fs(L.penalty,0)+' s Frühstart':'–'}</td></tr>`; }).join('');
-  const w=st[0], tie=st[0].n===st[1].n&&st[0].score===st[1].score;
-  const winner=tie?'Unentschieden!':`${esc(cfg.names[w.i])} gewinnt!`;
-  const maxL=Math.max(...race.lanes.map(L=>L.laps.length));
-  let lapRows=''; for(let k=0;k<maxL;k++) lapRows+=`<tr><td>${k+1}</td>${[0,1].map(i=>{const x=race.lanes[i].laps[k]; const b=x!=null&&x===race.lanes[i].best; return `<td class="num">${x!=null?(b?'<b>'+fs(x)+'</b>':fs(x)):'–'}</td>`;}).join('')}</tr>`;
-  $('resultBox').innerHTML=`<h2>${winner}</h2>
-    <p class="hint">${cfg.mode==='laps'?tg+' Runden':String(cfg.mins).replace(".",",")+' Minuten'} · Frühstart-Strafe ist in der Gesamtzeit enthalten.</p>
+  const st=standings(), tg=target(), solo=race.act.length===1;
+  const rows=st.map((s,k)=>{ const L=race.lanes[s.i], tot=laneTotal(s);
+    return `<tr><td><b>${solo?'':k+1+'.'}</b></td><td><span class="dot" style="background:${esc(cfg.colors[s.i])}"></span>${esc(cfg.names[s.i])}</td><td class="num">${s.n}</td><td class="num">${tot!=null?fs(tot):'nicht im Ziel'}</td><td class="num">${fs(L.best)}</td><td>${L.penalty?'+'+fs(L.penalty,0)+' s Frühstart':'–'}</td></tr>`; }).join('');
+  const w=st[0], tie=!solo&&st[0].n===st[1].n&&st[0].score===st[1].score;
+  const head=solo?`Training beendet`:(tie?'Unentschieden!':`${esc(cfg.names[w.i])} gewinnt!`);
+  const maxL=Math.max(...race.act.map(i=>race.lanes[i].laps.length));
+  let lapRows=''; for(let k=0;k<maxL;k++) lapRows+=`<tr><td>${k+1}</td>${race.act.map(i=>{const x=race.lanes[i].laps[k]; const b=x!=null&&x===race.lanes[i].best; return `<td class="num">${x!=null?(b?'<b>'+fs(x)+'</b>':fs(x)):'–'}</td>`;}).join('')}</tr>`;
+  const pbs=race.act.filter(i=>{const L=race.lanes[i]; return L.pb!=null&&L.best!=null&&L.best<=L.pb-0.01;});
+  $('resultBox').innerHTML=`<h2>${head}</h2>
+    <p class="hint">${cfg.mode==='laps'?tg+' Runden':String(cfg.mins).replace(".",",")+' Minuten'}${trackName()?' · '+esc(trackName()):''} · Frühstart-Strafe ist in der Gesamtzeit enthalten.</p>
     <table><tr><th>Platz</th><th>Fahrer</th><th>Runden</th><th>Gesamt</th><th>Beste</th><th>Strafe</th></tr>${rows}</table>
-    ${maxL?`<details><summary>Alle Rundenzeiten</summary><table><tr><th>Runde</th><th>${esc(cfg.names[0])}</th><th>${esc(cfg.names[1])}</th></tr>${lapRows}</table></details>`:''}
-    <div class="row" style="justify-content:flex-end;margin-top:14px"><button id="bClose">Schließen</button><button class="go" id="bAgain">Revanche</button></div>`;
+    ${pbs.map(i=>`<p style="margin:6px 0"><span class="badge ok">Neue Bestzeit</span> ${esc(cfg.names[i])}: <b class="num">${fs(race.lanes[i].best)} s</b> <span class="lbl">(vorher ${fs(race.lanes[i].pb)} s)</span></p>`).join('')}
+    ${maxL?`<details><summary>Alle Rundenzeiten</summary><table><tr><th>Runde</th>${race.act.map(i=>`<th>${esc(cfg.names[i])}</th>`).join('')}</tr>${lapRows}</table></details>`:''}
+    <p class="hint" id="saveState" style="margin-top:12px"></p>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button id="bClose">Schließen</button><button class="go" id="bAgain">${solo?'Nochmal':'Revanche'}</button></div>`;
   $('result').hidden=false;
   $('bClose').onclick=()=>{$('result').hidden=true;};
   $('bAgain').onclick=()=>{$('result').hidden=true; newRace(); startLights();};
-  say(tie?'Unentschieden!':`Rennen beendet. ${cfg.names[w.i]} gewinnt!`, true);
+  if(solo) say(`Training beendet. Beste Runde ${sayNum(race.lanes[w.i].best??0)}.`, true);
+  else say(tie?'Unentschieden!':`Rennen beendet. ${cfg.names[w.i]} gewinnt!`, true);
   beep(784,0.15); setTimeout(()=>beep(1046,0.4),180);
+  saveToTeam(st);
+}
+
+/* ---------- Rennstall (gemeinsamer Speicher) ---------- */
+const RS=window.Rennstall||null;
+let team={drivers:[],tracks:[],races:[],currentTrackId:null,ok:false};
+function trackName(){ const t=team.tracks.find(x=>x.id===cfg.trackId); return t?t.name:''; }
+function driverOf(i){ const w=cfg.who[i]; return team.drivers.find(d=>d.id===w)||null; }
+// bisherige persönliche Bestzeit des Fahrers auf Spur i auf der gewählten Strecke
+function teamPB(i){
+  const d=driverOf(i); if(!d) return null; let best=null;
+  for(const r of team.races){ if((r.trackId||'')!==(cfg.trackId||'')) continue;
+    for(const l of r.lanes||[]) if(l.driverId===d.id&&l.best!=null&&(best==null||l.best<best)) best=l.best; }
+  return best;
+}
+async function loadTeam(){
+  const s=RS&&RS.session();
+  if(!s){ team.ok=false; renderTeamUI(); return; }
+  $('teamState').textContent='Lade Rennstall …';
+  try{
+    const [t,drivers,tracks,races]=await Promise.all([RS.getTeam(),RS.list('drivers'),RS.list('tracks'),RS.list('races')]);
+    drivers.sort((a,b)=>a.created-b.created); tracks.sort((a,b)=>b.created-a.created);
+    team={drivers,tracks,races,currentTrackId:t&&t.currentTrackId,ok:!!t,name:t&&t.name};
+    if(!cfg.trackId||!tracks.find(x=>x.id===cfg.trackId)) cfg.trackId=team.currentTrackId||'';
+    // Spurbelegung prüfen: gelöschte Fahrer -> Gast
+    for(let i=0;i<2;i++){ const w=cfg.who[i]; if(w!=='gast'&&w!=='none'&&!drivers.find(d=>d.id===w)) cfg.who[i]='gast'; }
+    if(cfg.who[0]==='gast'&&cfg.who[1]==='gast'&&drivers.length){ const me=s.me&&drivers.find(d=>d.id===s.me); if(me) cfg.who[0]=me.id; }
+    save();
+  }catch(e){ team.ok=false; $('teamState').textContent='Rennstall nicht erreichbar. Rennen werden trotzdem gezählt.'; return renderTeamUI(true); }
+  renderTeamUI();
+}
+function renderTeamUI(keepMsg){
+  const s=RS&&RS.session(), on=!!(s&&team.ok);
+  $('teamRow').hidden=!on; $('teamOff').hidden=on;
+  if(!keepMsg) $('teamState').textContent=on?('Rennstall: '+(team.name||s.teamName)+(RS.demo?' (Demo, nur dieses Gerät)':'')):'';
+  for(let i=0;i<2;i++){
+    const sel=$('w'+i);
+    sel.innerHTML=(on?team.drivers.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join(''):'')+
+      `<option value="gast">${on?'Gast':'Name eintippen'}</option><option value="none">– niemand –</option>`;
+    if(!on&&cfg.who[i]!=='none') cfg.who[i]='gast';
+    sel.value=cfg.who[i]; if(sel.value!==cfg.who[i]){ cfg.who[i]='gast'; sel.value='gast'; }
+    syncLane(i);
+  }
+  $('trackSel').innerHTML=`<option value="">Ohne Strecke</option>`+team.tracks.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}${t.id===team.currentTrackId?' (aktuell)':''}</option>`).join('');
+  $('trackSel').value=cfg.trackId||'';
+}
+function syncLane(i){
+  const w=cfg.who[i], d=driverOf(i);
+  $('n'+i).hidden=w!=='gast'; $('c'+i).hidden=w==='none';
+  if(d) cfg.names[i]=d.name;
+  else if(w==='gast'){ cfg.names[i]=cfg.guest[i]||('Spieler '+(i+1)); $('n'+i).value=cfg.names[i]; }
+  if(w==='none'&&cfg.who[1-i]==='none'){ cfg.who[1-i]='gast'; $('w'+(1-i)).value='gast'; syncLane(1-i); }
+}
+async function saveToTeam(st){
+  const el=$('saveState'); if(!el) return;
+  if(!(RS&&RS.session()&&team.ok)){ el.innerHTML='Nicht gespeichert: kein Rennstall verbunden. <a href="rennstall.html" style="color:var(--accent)">Rennstall verbinden</a>'; return; }
+  const solo=race.act.length===1;
+  const lanes=st.map((s,k)=>{ const i=s.i, L=race.lanes[i], d=driverOf(i), tot=laneTotal(s);
+    return {lane:i+1, driverId:d?d.id:null, name:cfg.names[i], color:cfg.colors[i], laps:L.laps.map(x=>Math.round(x*1000)/1000),
+      penalty:L.penalty, jump:L.jump, finished:L.finished, total:tot!=null?Math.round(tot*1000)/1000:null, best:L.best, place:k+1}; });
+  const records=race.act.map(i=>{ const L=race.lanes[i], d=driverOf(i);
+    if(!d||L.best==null||L.pb==null||L.best>L.pb-0.01) return null;
+    return {driverId:d.id,name:d.name,t:L.best,prev:L.pb,lap:L.laps.indexOf(L.best)+1}; }).filter(Boolean);
+  const tie=!solo&&st[0].n===st[1].n&&st[0].score===st[1].score;
+  const doc={at:race.wallStart||Date.now(), kind:solo?'training':'race', mode:cfg.mode, target:cfg.mode==='laps'?cfg.laps:cfg.mins,
+    trackId:cfg.trackId||null, trackName:trackName()||null, lanes, records,
+    winnerId:(!solo&&!tie)?(lanes[0].driverId||null):null};
+  el.textContent='Wird im Rennstall gespeichert …';
+  try{
+    if(race.savedId){ await RS.set('races',race.savedId,doc); el.textContent='Im Rennstall aktualisiert ✓'; }
+    else{ const r=await RS.add('races',doc); race.savedId=r.id;
+      el.textContent=r.synced?'Im Rennstall gespeichert ✓':'Gespeichert. Wird hochgeladen, sobald Internet da ist.'; }
+    team.races=team.races.filter(x=>x.id!==race.savedId).concat([{id:race.savedId,...doc}]);
+  }catch(e){ el.textContent='Speichern hat nicht geklappt: '+(e.message||e); }
 }
 
 /* ---------- Einstellungen ---------- */
@@ -536,7 +631,8 @@ function renderRecords(){
 }
 function bindSettings(){
   for(let i=0;i<2;i++){ $('n'+i).value=cfg.names[i]; $('c'+i).value=cfg.colors[i];
-    $('n'+i).oninput=e=>{ cfg.names[i]=e.target.value.trim()||('Spieler '+(i+1)); save(); };
+    $('n'+i).oninput=e=>{ cfg.guest[i]=cfg.names[i]=e.target.value.trim()||('Spieler '+(i+1)); save(); };
+    $('w'+i).onchange=e=>{ cfg.who[i]=e.target.value; syncLane(i); save(); };
     $('c'+i).oninput=e=>{ cfg.colors[i]=e.target.value; document.documentElement.style.setProperty('--l'+(i+1),e.target.value); save(); };
     document.documentElement.style.setProperty('--l'+(i+1),cfg.colors[i]); }
   $('modeLaps').checked=cfg.mode==='laps'; $('modeTime').checked=cfg.mode==='time';
@@ -553,9 +649,10 @@ function bindSettings(){
 function show(view){
   $('setup').hidden=view!=='setup'; $('race').hidden=view!=='race';
   $('tabSetup').setAttribute('aria-pressed',view==='setup'); $('tabRace').setAttribute('aria-pressed',view==='race');
-  if(view==='race'){ if(!race||race.phase==='ready') newRace(); else { renderBoard(); updateHead(); } }
+  if(view==='race'){ if(!race||race.phase==='ready'||race.phase==='done') newRace(); else { renderBoard(); updateHead(); } }
 }
 $('tabSetup').onclick=()=>show('setup');
+$('trackSel').onchange=e=>{ cfg.trackId=e.target.value; save(); };
 $('tabRace').onclick=()=>show('race');
 $('bToRace').onclick=()=>{ unlockAudio(); show('race'); };
 $('bStart').onclick=()=>startLights();
@@ -570,7 +667,8 @@ document.addEventListener('keydown',e=>{
   else if(e.key===' '&&race&&(race.phase==='ready'||race.phase==='done')){ e.preventDefault(); startLights(); }
 });
 
-bindSettings(); renderRecords(); requestAnimationFrame(loop);
+bindSettings(); renderRecords(); renderTeamUI(); loadTeam(); requestAnimationFrame(loop);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&(!race||race.phase!=='run'&&race.phase!=='lights')) loadTeam(); });
 </script>
 </body>
 </html>
